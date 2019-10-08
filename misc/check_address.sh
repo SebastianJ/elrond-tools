@@ -9,7 +9,7 @@ fi
 
 jq_installed=$(command -v jq >/dev/null 2>&1)
 
-if [ "$jq_installed" = false ]; then
+if [ -z "$jq_installed" ]; then
   echo "jq is required to run this script."
   echo "Please install it using sudo apt-get install jq"
   exit 1
