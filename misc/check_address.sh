@@ -7,9 +7,7 @@ if [ -z "$pub_key" ]; then
   exit 1
 fi
 
-jq_installed=$(command -v jq >/dev/null 2>&1)
-
-if [ -z "$jq_installed" ]; then
+if ! command -v jq >/dev/null 2>&1; then
   echo "jq is required to run this script."
   echo "Please install it using sudo apt-get install jq"
   exit 1
