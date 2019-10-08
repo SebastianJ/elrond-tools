@@ -403,7 +403,7 @@ set_formatting() {
 }
 
 info_message() {
-  echo ${black_text}${1}${normal_text}
+  echo ${1}
 }
 
 success_message() {
