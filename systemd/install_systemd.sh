@@ -1,10 +1,14 @@
 #!/bin/bash
 
+user=${@}
+
+if [ -z "$user" ]; then
+  user=$(whoami)
+fi
+
 sudo systemctl stop elrond.service
 sudo systemctl disable elrond.service 
 sudo systemctl daemon-reload
-
-user=$(whoami)
 
 sudo rm -rf /lib/systemd/system/elrond.service
 wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/systemd/elrond.service
