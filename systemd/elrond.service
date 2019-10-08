@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-Environment=GOPATH=/home/$$$USER$$$/go
-WorkingDirectory=/home/$$$USER$$$/go/src/github.com/ElrondNetwork/elrond-go/cmd/node/
+Environment=GOPATH=/home/---USER---/go
+WorkingDirectory=/home/---USER---/go/src/github.com/ElrondNetwork/elrond-go/cmd/node/
 ExecStart=/bin/bash -lc './node --use-log-view'
-User=$$$USER$$$
-Group=$$$USER$$$
+User=---USER---
+Group=---USER---
 UMask=0002
 
 RestartSec=1

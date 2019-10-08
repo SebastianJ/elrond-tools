@@ -12,8 +12,8 @@ sudo systemctl daemon-reload
 
 sudo rm -rf /lib/systemd/system/elrond.service
 wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/systemd/elrond.service
-sed -i "s/\$\$\$USER\$\$\$/${user}/g" elrond.service
-sudo mv elrond.service /lib/systemd/system/
+sed -i "s/---USER---/${user}/g" elrond.service
+sudo cp elrond.service /lib/systemd/system/
 
 sudo systemctl daemon-reload
 sudo systemctl enable elrond.service
