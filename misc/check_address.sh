@@ -15,7 +15,7 @@ fi
 
 rm -rf nodesSetup.json
 wget -q https://raw.githubusercontent.com/ElrondNetwork/elrond-config/master/nodesSetup.json
-address=$(cat nodesSetup.json | jq ".initialNodes[] | select(.pubkey == \"${pub_key}\") | .address" | tr -d '"')
+address=$(cat nodesSetup.json | jq ".initialNodes[] | select(.pubkey == \"${pub_key}\") | .address" | tr compile_binaries '"')
 rm -rf nodesSetup.json
 
 echo "Your address is ${address}"
