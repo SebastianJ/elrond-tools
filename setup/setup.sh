@@ -17,6 +17,7 @@ Options:
    --gvm                  force installation/reinstallation of gvm and go
    --go-version           what version of golang to install, defaults to ${default_go_version}
    --systemd              install a systemd to manage the node process
+   --tmux                 use tmux for starting the node
    --start                if the script should start the node after the setup process has completed
    --help                 print this help
 EOT
@@ -32,7 +33,8 @@ do
   --start) start_node=true ;;
   --gvm) install_gvm=true ;;
   --go-version) go_version="$2" ; shift;;
-  --systemd) install_systemd_unit=true ;;
+  --systemd) install_systemd_unit=true ; node_mode="systemd" ;;
+  --tmux) node_mode="tmux" ;;
   -h|--help) usage; exit 1;;
   (--) shift; break;;
   (-*) usage; exit 1;;
@@ -66,8 +68,22 @@ set_default_option_values() {
     reset_database=false
   fi
   
+  if [ -z "$install_systemd_unit" ]; then
+    install_systemd_unit=false
+  fi
+  
   if [ -z "$go_version" ]; then
     go_version=$default_go_version
+  fi
+}
+
+detect_node_mode() {
+  if [ "$install_systemd_unit" = true ]; then
+    node_mode="systemd"
+  fi
+  
+  if [ -z "$node_mode" ]; then
+    node_mode="binary"
   fi
 }
 
@@ -75,10 +91,7 @@ initialize() {
   executing_user=$(whoami)
   set_default_option_values
   set_paths
-  
-  if [ ! -z "$systemd_service_name" ]; then
-    sudo systemctl stop $systemd_service_name
-  fi
+  detect_node_mode
   
   if [ "$full_reinstall" = true ]; then
     rm -rf $base_path && mkdir -p $base_path
@@ -209,7 +222,7 @@ compile_binaries() {
 # 
 backup_keys() {
   if ! test -f $keys_archive && ls -d ${node_path}/cmd/node/config/*.pem 1> /dev/null 2>&1; then
-    output_header "${header_index}. Keys - backing up existing keys"
+    output_header "${header_index}. Keys - backing up keys"
     ((header_index++))
     
     info_message "Backing up existing keys from ${node_path}/cmd/node/config to ${keys_archive}..."
@@ -337,12 +350,35 @@ install_systemd_unit() {
 
 start_node() {
   if [ "$start_node" = true ]; then
-    if [ "$install_systemd_unit" = true ]; then
+    output_header "${header_index}. Node"
+    ((header_index++))
+    
+    case $node_mode in
+    binary)
+      info_messsage "Starting node using regular binary..."
+      cd $node_path/cmd/node/ && ./node
+      ;;
+    systemd)
+      info_message "Starting node using Systemd..."
       sudo systemctl start elrond.service
       sudo systemctl status elrond.service
-    else
-      cd $node_path/cmd/node/ && ./node
-    fi
+      ;;
+    tmux)
+      if ! command -v tmux >/dev/null 2>&1; then
+        sudo apt-get -y install tmux  1> /dev/null 2>&1
+      fi
+      info_message "Starting node using tmux..."
+      tmux_session_name="elrond"
+      tmux kill-session -t "${tmux_session_name}"
+      tmux new-session -d -s "${tmux_session_name}"
+      tmux send -t "${tmux_session_name}" "cd ${node_path}/cmd/node && ./node" ENTER
+      info_message "Tmux session started! Attach to the session using ${bold_text}tmux attach-session -t ${tmux_session_name}${normal_text}"
+      ;;
+    *)
+      ;;
+    esac
+    
+    output_footer
   fi
 }
 
