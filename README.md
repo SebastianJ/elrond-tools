@@ -1,2 +1,3 @@
 # elrond-tools
-Tools/scripts for Elrond / Battle of Nodes
+
+This repo will contain a series of scripts to manage and interact with nodes for Elrond's Battle of Nodes testnet.
