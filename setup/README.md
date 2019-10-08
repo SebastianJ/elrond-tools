@@ -3,14 +3,14 @@
 Installation and updater script for Elrond: Battle of Nodes.
 
 The script has the following functionality:
-- Auto-install GVM (Go Verson Manager) and Go (the script automatically detects if this needs to be done)
+- Auto-install GVM (Go Version Manager) and Go (the script automatically detects if this needs to be done)
 - Fetch the latest released versions of elrond-go and elrond-config
 - Fetch all dependent go modules
-- Build the relevant binaries
+- Builds the relevant binaries
 - Automatically generate keys if no existing keypairs are detected
 - Automatically copy existing keypairs if they are detected
 - Automatic backups of detected keypairs
-- Automatic cleanup of previous installation's log and stats file. Previous database can also be removed using --reset-database
+- Automatic cleanup of previous installation's log and stats files. Previous database can also be removed using --reset-database
 - Automatic installation of a Systemd unit with appropriate settings
 - Automatically start the node using the normal binary, using tmux or using Systemd when the installation has completed
 
