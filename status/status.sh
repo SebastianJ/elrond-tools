@@ -85,7 +85,9 @@ parse_hosts() {
   fi
   
   if [ -z "$hosts" ] || [ ${#hosts[@]} -eq 0 ]; then
+    echo ""
     error_message "You didn't supply any hosts to check, neither could the script identify any running node processes on your computer/server. Please provide hosts using the --hosts parameter"
+    echo ""
     exit 1
   fi
 }
@@ -114,10 +116,17 @@ check_hosts() {
 }
 
 check_host() {
-  local response=$(curl --silent http://${1}/node/status | jq '.details')
+  local host=$1
+  
+  # Add the default port (8080) to hosts missing the port component
+  if [[ ! $host =~ :[0-9]{4}$ ]]; then
+    host="${host}:${default_port}"
+  fi
+  
+  local response=$(curl --silent http://${host}/node/status | jq '.details')
     
   if [ ! -z "$response" ]; then
-    output_header "${header_index}. Checking host ${1}"
+    output_header "${header_index}. Checking host ${host}"
     ((header_index++))
     
     if [ "$debug_mode" = true ]; then
@@ -161,7 +170,7 @@ check_host() {
     if [ "$is_syncing" = "0" ]; then
       success_message "${italic_text}Status:${normal_text}${green_text} ${bold_text}synchronized${normal_text}"
     else
-      warning_message "${italic_text}Status:${normal_text}${green_text} ${bold_text}synchronizing${normal_text}"
+      warning_message "${italic_text}Status:${normal_text}${yellow_text} ${bold_text}synchronizing${normal_text}"
     fi
     
     if [ "$compact_mode" = false ]; then
@@ -172,7 +181,7 @@ check_host() {
       output_data "Number of transactions processed" "${num_transactions_processed}"
     fi
 
-    output_data "Current synchronized block none" "${nonce} / ${probable_highest_nonce}"
+    output_data "Current synchronized block nonce" "${nonce} / ${probable_highest_nonce}"
     output_data "Current consensus round" "${synchronized_round} / ${current_round}"
     
     if [ "$compact_mode" = false ]; then
@@ -197,6 +206,10 @@ check_host() {
       output_data "Network - sent" "${network_sent_percent}% - rate: ${network_sent_bps}/s - peak rate: ${network_sent_bps_peak}/s"
     fi
     
+    echo ""
+  else
+    echo ""
+    error_message "The node ${host} doesn't respond with a valid response - are you sure the node is online?"
     echo ""
   fi
 }
