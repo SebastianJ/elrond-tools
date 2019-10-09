@@ -123,12 +123,12 @@ check_host() {
     host="${host}:${default_port}"
   fi
   
+  output_header "${header_index}. Checking host ${host}"
+  ((header_index++))
+  
   local response=$(curl --silent http://${host}/node/status | jq '.details')
     
-  if [ ! -z "$response" ]; then
-    output_header "${header_index}. Checking host ${host}"
-    ((header_index++))
-    
+  if [ ! -z "$response" ]; then    
     if [ "$debug_mode" = true ]; then
       echo ""
       echo "Response: ${response}"
@@ -208,7 +208,6 @@ check_host() {
     
     echo ""
   else
-    echo ""
     error_message "The node ${host} doesn't respond with a valid response - are you sure the node is online?"
     echo ""
   fi
