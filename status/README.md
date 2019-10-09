@@ -24,4 +24,4 @@ curl -LO https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/status
 ## Direct usage examples
 
 bash <(curl -s -S -L https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/status/status.sh)
-bash <(curl -s -S -L https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/status/status.sh) --hosts someremotehost.com:8080,anotherremotehose.com:8080
+bash <(curl -s -S -L https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/status/status.sh) --hosts someremotehost.com,anotherremotehose.com:8081
