@@ -12,7 +12,7 @@ usage() {
    cat << EOT
 Usage: $0 [option] command
 Options:
-   --hosts          hosts   the hosts you want to check status for
+   --hosts          hosts   a comma separated/delimited list of hosts you want to check status for. E.g: --hosts localhost:8080,localhost:8081,localhost:8082
    --compact                compact output, skipping some unnecessary data
    --no-formatting          disable formatting (colors, bold text etc.), recommended when using the script output in emails etc.
    --debug                  debug mode, output original response etc.
