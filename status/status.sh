@@ -13,6 +13,7 @@ usage() {
 Usage: $0 [option] command
 Options:
    --hosts          hosts   a comma separated/delimited list of hosts you want to check status for. E.g: --hosts localhost:8080,localhost:8081,localhost:8082
+   --file           path    path to file containing hosts to check status for
    --compact                compact output, skipping some unnecessary data
    --no-formatting          disable formatting (colors, bold text etc.), recommended when using the script output in emails etc.
    --debug                  debug mode, output original response etc.
@@ -24,6 +25,7 @@ while [ $# -gt 0 ]
 do
   case $1 in
   --hosts) hosts_string="${2}" ; shift;;
+  --file) file_path="${2}" ; shift;;
   --compact) compact_mode=true;;
   --no-formatting) format_output=false;;
   --debug) debug_mode=true;;
@@ -78,7 +80,11 @@ initialize() {
 
 parse_hosts() {
   if [ -z "$hosts_string" ]; then
-    identify_node_processes
+    if [ ! -z "$file_path" ] && test -f $file_path; then
+      IFS=$'\n' read -d '' -r -a hosts < $file_path
+    else
+      identify_node_processes
+    fi
   else
     hosts_string="$(echo -e "${hosts_string}" | tr -d '[:space:]')"
     hosts=($(echo "${hosts_string}" | tr ',' '\n'))
