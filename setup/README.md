@@ -42,7 +42,7 @@ Options:
 Download and chmod the script:
 
 ```
-rm -rf setup.sh && wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
+curl -LO https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
 ```
 
 ### Basic install: `./setup.sh`
