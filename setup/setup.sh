@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.0.1"
+version="0.0.2"
 script_name="setup.sh"
 default_go_version="go1.13.1"
 
@@ -582,7 +582,7 @@ output_separator() {
 }
 
 output_banner() {
-  output_header "Running Elrond: Battle of Nodes installer v${version}"
+  output_header "Running Elrond: Battle of Nodes installer/updater v${version}"
   current_time=`date`
   echo "You're running ${bold_text}${script_name}${normal_text} as ${bold_text}${executing_user}${normal_text}. Current time is: ${bold_text}${current_time}${normal_text}."
 }
