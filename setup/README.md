@@ -42,7 +42,7 @@ Options:
 Download and chmod the script:
 
 ```
-wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
+rm -rf setup.sh && wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
 ```
 
 ### Basic install: `./setup.sh`
@@ -76,15 +76,15 @@ bash <(curl -s -S -L https://raw.githubusercontent.com/SebastianJ/elrond-tools/m
 
 ## Auto-update functionality
 
-First run setup.sh to install everything and make sure that the node is functioning properly:
+First run setup.sh to install everything and make sure that the node is functioning properly (use CTRL+C to stop the node when you see that it's running properly):
 
-`./setup.sh`
+`./setup.sh --start`
 
 It's highly recommended that you use Systemd for the auto-update functionality (the script currently only supports this but I'll add tmux support soon).
 
-If the auto-updater by any unexpected reason terminates Systemd will automatically start it back up.
+If the auto-updater by any unexpected reason terminates Systemd will automatically start it back up (same goes for the regular Systemd unit managing the node process).
 
 After a regular setup, install everything required for Systemd and then start the node:
 
-`./setup.sh --install-systemd --install-updater --systemd --start`
+`./setup.sh --install-systemd --install-updater --start --systemd`
 
