@@ -26,5 +26,7 @@ curl -LOs https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/statu
 
 ## Direct usage examples
 
+```
 bash <(curl -s -S -L https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/status/status.sh)
 bash <(curl -s -S -L https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/status/status.sh) --hosts someremotehost.com,anotherremotehose.com:8081
+```
