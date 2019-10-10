@@ -466,8 +466,12 @@ install_updater_systemd_unit() {
     sudo mv elrond-updater.service /lib/systemd/system/
     sudo systemctl daemon-reload 1> /dev/null 2>&1
     sudo systemctl enable elrond-updater.service 1> /dev/null 2>&1
-    
+        
     success_message "Successfully installed the Updater Systemd unit!"
+    
+    info_message "Starting the updater service..."
+    sudo systemctl start elrond-updater.service
+    sudo systemctl status elrond-updater.service
     
     output_footer
   fi
