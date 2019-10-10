@@ -58,11 +58,11 @@ Same as above, but will start the binary after installation is complete.
 Same as above, but also sets the display name for the node to "hello"
 
 
-### Using systemd: `./setup.sh --start --display-name hello --systemd`
+### Using systemd: `./setup.sh --start --systemd --display-name hello`
 
 Same as above, but will also install the Systemd unit and start the node using Systemd
 
-### Using tmux: `./setup.sh --start --display-name hello --tmux`
+### Using tmux: `./setup.sh --start --tmux --display-name hello`
 
 Like above, but node will be started in a tmux session called elrond.
 
