@@ -42,7 +42,6 @@ Download and chmod the script:
 
 ```
 wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
-
 ```
 
 ### Basic install: `./setup.sh`
