@@ -13,6 +13,7 @@ The script has the following functionality:
 - Automatic cleanup of previous installation's log and stats files. Previous database can also be removed using --reset-database
 - Automatic installation of a Systemd unit with appropriate settings
 - Automatically start the node using the normal binary, using tmux or using Systemd when the installation has completed
+- Support for an auto-updater that compares the current installed version vs the most recent released version on Github
 
 ## Arguments
 From `./setup.sh --help`:
