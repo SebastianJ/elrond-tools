@@ -25,13 +25,23 @@ Options:
    --reset-database       resets the database for an existing installation
    --gvm                  force installation/reinstallation of gvm and go
    --go-version           what version of golang to install, defaults to ${default_go_version}
-   --install-systemd      install a systemd to manage the node process
+   --install-systemd      install a systemd unit to manage the node process
+   --install-updater      install a systemd unit for the auto-updater
    --systemd              use systemd for starting the node
    --tmux                 use tmux for starting the node
    --start                if the script should start the node after the setup process has completed
+   --daemonize            if the script should daemonize itself / run in an endless loop
+   --interval             how often the script should run while daemonized / running in the endless loop
    --help                 print this help
 
 ## Local installation examples
+
+Download and chmod the script:
+
+```
+wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
+
+```
 
 ### Basic install: `./setup.sh`
 
@@ -59,3 +69,19 @@ Attach to the session using tmux attach-session -t elrond
 ## Direct installation examples
 
 bash <(curl -s -S -L https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh) --start
+
+
+## Auto-update functionality
+
+First run setup.sh to install everything and make sure that the node is functioning properly:
+
+`./setup.sh`
+
+It's highly recommended that you use Systemd for the auto-update functionality (the script currently only supports this but I'll add tmux support soon).
+
+If the auto-updater by any unexpected reason terminates Systemd will automatically start it back up.
+
+After a regular setup, install everything required for Systemd and then start the node:
+
+`./setup.sh --install-systemd --install-updater --systemd --start`
+
