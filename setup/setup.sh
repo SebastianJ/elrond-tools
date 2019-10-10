@@ -305,7 +305,7 @@ copy_configuration_files() {
 
 update_display_name() {
   if [ ! -z "$display_name" ]; then
-    sed -i "s/NodeDisplayName = \"[a-zA-Z0-9]*\"/NodeDisplayName = \"${display_name}\"/g" $node_path/cmd/node/config/config.toml
+    sed -i "s/NodeDisplayName = \"[^\"]*\"/NodeDisplayName = \"${display_name}\"/g" $node_path/cmd/node/config/config.toml
   fi
 }
 
