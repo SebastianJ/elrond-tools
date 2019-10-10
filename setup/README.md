@@ -70,8 +70,9 @@ Attach to the session using tmux attach-session -t elrond
 
 ## Direct installation examples
 
+```
 bash <(curl -s -S -L https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh) --start
-
+```
 
 ## Auto-update functionality
 
