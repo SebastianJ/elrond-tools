@@ -164,7 +164,7 @@ gvm_installation() {
     fi
     
     if ! cat $HOME/.bash_profile | grep "export PATH" > /dev/null; then
-      echo "export PATH=\"$PATH:${go_path}/bin\"" >> $HOME/.bash_profile
+      echo "export PATH=\"\$PATH:${go_path}/bin\"" >> $HOME/.bash_profile
     fi
 
     source $HOME/.bash_profile
@@ -414,25 +414,7 @@ install_systemd_unit() {
     output_header "${header_index}. Systemd - installing Systemd unit"
     ((header_index++))
     
-    cd $HOME
-    
-    sudo systemctl stop elrond.service 1> /dev/null 2>&1
-    sudo systemctl disable elrond.service  1> /dev/null 2>&1
-    sudo systemctl daemon-reload 1> /dev/null 2>&1
-    
-    info_message "Downloading Systemd unit file..."
-    sudo rm -rf /lib/systemd/system/elrond.service
-    wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/systemd/elrond.service
-    
-    info_message "Updating Systemd unit to use correct settings"
-    sed -i "s/---USER---/${executing_user}/g" elrond.service
-    
-    info_message "Installing Systemd unit"
-    sudo cp elrond.service /lib/systemd/system/
-    sudo systemctl daemon-reload 1> /dev/null 2>&1
-    sudo systemctl enable elrond.service 1> /dev/null 2>&1
-    
-    success_message "Successfully installed the Systemd unit!"
+    download_and_setup_systemd_unit "elrond.service"
     
     output_footer
   fi
@@ -448,26 +430,12 @@ install_updater_systemd_unit() {
     mkdir -p $tools_path
     rm -rf $tools_path/setup.sh
     
-    sudo systemctl stop elrond-updater.service 1> /dev/null 2>&1
-    sudo systemctl disable elrond-updater.service  1> /dev/null 2>&1
-    sudo systemctl daemon-reload 1> /dev/null 2>&1
-    
-    info_message "Downloading Updater Systemd unit file..."
-    sudo rm -rf /lib/systemd/system/elrond.service
-    wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/systemd/elrond-updater.service
-    
-    info_message "Updating Systemd unit to use correct settings"
-    sed -i "s/---USER---/${executing_user}/g" elrond.service
-    
     info_message "Downloading setup script to ${tools_path}/setup.sh"
-    cd $tools_path && wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh
+    cd $tools_path
+    wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh
+    chmod u+x setup.sh
     
-    info_message "Installing Systemd unit"
-    sudo mv elrond-updater.service /lib/systemd/system/
-    sudo systemctl daemon-reload 1> /dev/null 2>&1
-    sudo systemctl enable elrond-updater.service 1> /dev/null 2>&1
-        
-    success_message "Successfully installed the Updater Systemd unit!"
+    download_and_setup_systemd_unit "elrond-updater.service"
     
     info_message "Starting the updater service..."
     sudo systemctl start elrond-updater.service
@@ -477,13 +445,37 @@ install_updater_systemd_unit() {
   fi
 }
 
+download_and_setup_systemd_unit() {
+  local unit_name=$1
+  
+  cd $HOME
+  
+  sudo systemctl stop $unit_name 1> /dev/null 2>&1
+  sudo systemctl disable $unit_name  1> /dev/null 2>&1
+  sudo systemctl daemon-reload 1> /dev/null 2>&1
+  
+  info_message "Downloading Updater ${unit_name} ..."
+  sudo rm -rf /lib/systemd/system/$unit_name
+  wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/systemd/$unit_name
+  
+  info_message "Updating ${unit_name} to use correct settings"
+  sed -i "s/---USER---/${executing_user}/g" $unit_name
+  
+  info_message "Installing ${unit_name} ..."
+  sudo mv $unit_name /lib/systemd/system/
+  sudo systemctl daemon-reload 1> /dev/null 2>&1
+  sudo systemctl enable $unit_name 1> /dev/null 2>&1
+  
+  success_message "Successfully installed ${unit_name}!"
+}
+
 #
 # Startup methods
 #
 start_node() {
   check_for_running_nodes
   
-  if ([ "$git_release_updated" = true ] && [ "$start_node" = true ]) || [ "$nodes_running" = false ]; then
+  if [ "$start_node" = true ] && ([ "$git_release_updated" = true ] || [ "$nodes_running" = false ]); then
     output_header "${header_index}. Node - starting node"
     ((header_index++))
     
@@ -516,9 +508,13 @@ start_node_using_regular_binary() {
 start_node_using_systemd() {
   info_message "Starting node using Systemd..."
   
-  sudo systemctl stop elrond.service
-  sudo systemctl start elrond.service
-  sudo systemctl status elrond.service
+  if test -f /lib/systemd/system/elrond.service; then
+    sudo systemctl stop elrond.service
+    sudo systemctl start elrond.service
+    sudo systemctl status elrond.service
+  else
+    error_message "Couldn't find the systemd unit file in /lib/systemd/system/elrond.service - please install it by re-running this script using the --install-systemd argument."
+  fi
 }
 
 start_node_using_tmux() {
