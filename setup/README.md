@@ -17,14 +17,15 @@ The script has the following functionality:
 ## Arguments
 From `./setup.sh --help`:
 
+```
 Usage: ./setup.sh [option] command
 Options:
-   --go-path        path  the go path where files should be installed, will default to $GOPATH
+   --go-path        path  the go path where files should be installed, will default to /home/deploy/go
    --display-name   name  the display name for the node
    --reinstall            perform a clean / full reinstall (make sure you have backed up your keys before doing this!)
    --reset-database       resets the database for an existing installation
    --gvm                  force installation/reinstallation of gvm and go
-   --go-version           what version of golang to install, defaults to ${default_go_version}
+   --go-version           what version of golang to install, defaults to go1.13.1
    --install-systemd      install a systemd unit to manage the node process
    --install-updater      install a systemd unit for the auto-updater
    --systemd              use systemd for starting the node
@@ -33,6 +34,7 @@ Options:
    --daemonize            if the script should daemonize itself / run in an endless loop
    --interval             how often the script should run while daemonized / running in the endless loop
    --help                 print this help
+```
 
 ## Local installation examples
 
