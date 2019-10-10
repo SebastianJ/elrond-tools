@@ -19,13 +19,14 @@ From `./setup.sh --help`:
 
 Usage: ./setup.sh [option] command
 Options:
-   --go-path        path  the go path where files should be installed, will default to /home/deploy/go
+   --go-path        path  the go path where files should be installed, will default to $GOPATH
    --display-name   name  the display name for the node
    --reinstall            perform a clean / full reinstall (make sure you have backed up your keys before doing this!)
    --reset-database       resets the database for an existing installation
    --gvm                  force installation/reinstallation of gvm and go
-   --go-version           what version of golang to install, defaults to go1.13.1
-   --systemd              install a systemd to manage the node process
+   --go-version           what version of golang to install, defaults to ${default_go_version}
+   --install-systemd      install a systemd to manage the node process
+   --systemd              use systemd for starting the node
    --tmux                 use tmux for starting the node
    --start                if the script should start the node after the setup process has completed
    --help                 print this help

@@ -16,9 +16,13 @@ Options:
    --reset-database       resets the database for an existing installation
    --gvm                  force installation/reinstallation of gvm and go
    --go-version           what version of golang to install, defaults to ${default_go_version}
-   --systemd              install a systemd to manage the node process
+   --install-systemd      install a systemd unit to manage the node process
+   --install-updater      install a systemd unit for the auto-updater
+   --systemd              use systemd for starting the node
    --tmux                 use tmux for starting the node
    --start                if the script should start the node after the setup process has completed
+   --daemonize            if the script should daemonize itself / run in an endless loop
+   --interval             how often the script should run while daemonized / running in the endless loop
    --help                 print this help
 EOT
 }
@@ -30,11 +34,15 @@ do
   --display-name) display_name="$2" ; shift;;
   --reinstall) full_reinstall=true ;;
   --reset-database) reset_database=true ;;
-  --start) start_node=true ;;
   --gvm) install_gvm=true ;;
   --go-version) go_version="$2" ; shift;;
-  --systemd) install_systemd_unit=true ; node_mode="systemd" ;;
+  --install-systemd) install_systemd_unit=true ;;
+  --install-updater) install_updater_systemd_unit=true ;;
+  --systemd) node_mode="systemd" ;;
   --tmux) node_mode="tmux" ;;
+  --start) start_node=true ;;
+  --daemonize) daemonize=true ;;
+  --interval) interval="$2" ; shift;;
   -h|--help) usage; exit 1;;
   (--) shift; break;;
   (-*) usage; exit 1;;
@@ -72,26 +80,33 @@ set_default_option_values() {
     install_systemd_unit=false
   fi
   
+  if [ -z "$install_updater_systemd_unit" ]; then
+    install_updater_systemd_unit=false
+  fi
+  
   if [ -z "$go_version" ]; then
     go_version=$default_go_version
-  fi
-}
-
-detect_node_mode() {
-  if [ "$install_systemd_unit" = true ]; then
-    node_mode="systemd"
   fi
   
   if [ -z "$node_mode" ]; then
     node_mode="binary"
+  fi
+  
+  # Interval between every loop invocation
+  # E.g: 30s => 30 seconds, 1m => 1 minute, 1h => 1 hour
+  if [ -z "$interval" ]; then
+    interval=1m
+  fi
+  
+  if [ -z "$daemonize" ]; then
+    daemonize=false
   fi
 }
 
 initialize() {
   executing_user=$(whoami)
   set_default_option_values
-  set_paths
-  detect_node_mode
+  set_variables
   
   if [ "$full_reinstall" = true ]; then
     rm -rf $base_path && mkdir -p $base_path
@@ -100,11 +115,18 @@ initialize() {
   set_formatting
 }
 
-set_paths() {
+set_variables() {
   base_path=$go_path/src/github.com/ElrondNetwork
   node_path=$base_path/elrond-go
   config_path=$base_path/elrond-config
+  tools_path=$HOME/elrond-tools
+  
   keys_archive=$HOME/keys.tar.gz
+  configs_archive=$HOME/configs.tar.gz
+  
+  configuration_files="config.toml economics.toml genesis.json	nodesSetup.json	p2p.toml server.toml"
+  git_release_updated=false
+  nodes_running=false
   
   if test -d $node_path; then
     install_method="update"
@@ -164,17 +186,11 @@ gvm_installation() {
 }
 
 install_git_repos() {
-  output_header "${header_index}. Installation - installing git repos elrond-go and elrond-config"
+  output_header "${header_index}. Installation - installing/updating git repos elrond-go and elrond-config"
   ((header_index++))
   
   install_git_repo "go"
-  success_message "Successfully fetched and installed the latest elrond-go release ${release_tag}"
-  
   install_git_repo "config"
-  success_message "Successfully fetched and installed the latest elrond-config release ${release_tag}"
-  
-  copy_configuration_files
-  success_message "Successfully copied the configuration files over to ${node_path}/cmd/node/config"
   
   output_footer
 }
@@ -186,20 +202,89 @@ install_git_repo() {
   mkdir -p $base_path
   cd $base_path
   
-  if ! test -d $repo_name; then
+  if test -d $repo_name; then
+    cd $repo_name
+    check_active_git_release
+    
+    if [ "$active_release_tag" != "$release_tag" ]; then
+      warning_message "The script has detected that you're running an outdated release of ${repo_name} (${active_release_tag}). There's a newer version of ${repo_name} (${release_tag}) available."
+      info_message "Updating git repo ${repo_name} to use the new version ${release_tag} ..."
+      update_git_repo
+      git_release_updated=true
+    else
+      success_message "You're already running the latest release of ${repo_name} (${release_tag}), there's no need to update!"
+    fi
+  else
     git clone https://github.com/ElrondNetwork/${repo_name} 1> /dev/null 2>&1
+    cd $repo_name
+    update_git_repo
+    git_release_updated=true
+    success_message "Successfully fetched and installed the latest ${repo_name} release ${release_tag}"
   fi
-  
-  cd $repo_name
-  
+}
+
+check_active_git_release() {
+  active_release_tag="$(git describe --tags)"
+}
+
+update_git_repo() {
   git fetch 1> /dev/null 2>&1
   git checkout --force tags/${release_tag} 1> /dev/null 2>&1
   git pull 1> /dev/null 2>&1
 }
 
-copy_configuration_files() {
-  cp $config_path/*.* $node_path/cmd/node/config
+#
+# Configuration management
+#
+
+backup_configuration_files() {
+  if ls -d ${node_path}/cmd/node/config/*.toml 1> /dev/null 2>&1; then
+    output_header "${header_index}. Configuration - backing up existing configuration files"
+    ((header_index++))
+    
+    rm -rf $configs_archive
+    
+    info_message "Backing up existing configuration files from ${node_path}/cmd/node/config to ${configs_archive}..."
+    
+    local archive_name="configs.tar.gz"
+    
+    cd $node_path/cmd/node/config
+    tar -czvf ${archive_name} ${configuration_files} 1> /dev/null 2>&1
+    mv ${archive_name} $HOME
+    
+    if test -f $configs_archive; then
+      success_message "Successfully backed up previous configuration files to ${configs_archive}!"
+    fi
+    
+    output_footer
+  fi
 }
+
+copy_configuration_files() {
+  output_header "${header_index}. Configuration - copying configuration files"
+  ((header_index++))
+  
+  cd $node_path/cmd/node/config
+  rm -rf $configuration_files
+  
+  cp $config_path/*.* $node_path/cmd/node/config
+  
+  if test -f $node_path/cmd/node/config/config.toml; then
+    success_message "Successfully copied the configuration files over to ${node_path}/cmd/node/config"
+  fi
+  
+  output_footer
+}
+
+update_display_name() {
+  if [ ! -z "$display_name" ]; then
+    sed -i "s/NodeDisplayName = \"[a-zA-Z0-9]*\"/NodeDisplayName = \"${display_name}\"/g" $node_path/cmd/node/config/config.toml
+  fi
+}
+
+#
+# Compilation
+#
 
 compile_binaries() {
   output_header "${header_index}. Compilation - compiling node binary"
@@ -225,7 +310,7 @@ backup_keys() {
     output_header "${header_index}. Keys - backing up keys"
     ((header_index++))
     
-    info_message "Backing up existing keys from ${node_path}/cmd/node/config to ${keys_archive}..."
+    info_message "Backing up keys from ${node_path}/cmd/node/config to ${keys_archive}..."
     
     cd $node_path/cmd/node/config
     tar -czvf keys.tar.gz *.pem 1> /dev/null 2>&1
@@ -321,10 +406,15 @@ cleanup() {
   fi
 }
 
+#
+# Systemd
+# 
 install_systemd_unit() {
   if [ "$install_systemd_unit" = true ]; then
     output_header "${header_index}. Systemd - installing Systemd unit"
     ((header_index++))
+    
+    cd $HOME
     
     sudo systemctl stop elrond.service 1> /dev/null 2>&1
     sudo systemctl disable elrond.service  1> /dev/null 2>&1
@@ -348,31 +438,61 @@ install_systemd_unit() {
   fi
 }
 
+install_updater_systemd_unit() {
+  if [ "$install_updater_systemd_unit" = true ]; then
+    output_header "${header_index}. Systemd - installing Updater Systemd unit"
+    ((header_index++))
+    
+    cd $HOME
+    
+    mkdir -p $tools_path
+    rm -rf $tools_path/setup.sh
+    
+    sudo systemctl stop elrond-updater.service 1> /dev/null 2>&1
+    sudo systemctl disable elrond-updater.service  1> /dev/null 2>&1
+    sudo systemctl daemon-reload 1> /dev/null 2>&1
+    
+    info_message "Downloading Updater Systemd unit file..."
+    sudo rm -rf /lib/systemd/system/elrond.service
+    wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/systemd/elrond-updater.service
+    
+    info_message "Updating Systemd unit to use correct settings"
+    sed -i "s/---USER---/${executing_user}/g" elrond.service
+    
+    info_message "Downloading setup script to ${tools_path}/setup.sh"
+    cd $tools_path
+    wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh
+    
+    info_message "Installing Systemd unit"
+    sudo mv elrond-updater.service /lib/systemd/system/
+    sudo systemctl daemon-reload 1> /dev/null 2>&1
+    sudo systemctl enable elrond-updater.service 1> /dev/null 2>&1
+    
+    success_message "Successfully installed the Updater Systemd unit!"
+    
+    output_footer
+  fi
+}
+
+#
+# Startup methods
+#
 start_node() {
-  if [ "$start_node" = true ]; then
-    output_header "${header_index}. Node"
+  check_for_running_nodes
+  
+  if ([ "$git_release_updated" = true ] && [ "$start_node" = true ]) || [ "$nodes_running" = false ]; then
+    output_header "${header_index}. Node - starting node"
     ((header_index++))
     
     case $node_mode in
     binary)
-      info_messsage "Starting node using regular binary..."
-      cd $node_path/cmd/node/ && ./node
+      start_node_using_regular_binary
       ;;
     systemd)
-      info_message "Starting node using Systemd..."
-      sudo systemctl start elrond.service
-      sudo systemctl status elrond.service
+      start_node_using_systemd
       ;;
     tmux)
-      if ! command -v tmux >/dev/null 2>&1; then
-        sudo apt-get -y install tmux  1> /dev/null 2>&1
-      fi
-      info_message "Starting node using tmux..."
-      tmux_session_name="elrond"
-      tmux kill-session -t "${tmux_session_name}"
-      tmux new-session -d -s "${tmux_session_name}"
-      tmux send -t "${tmux_session_name}" "cd ${node_path}/cmd/node && ./node" ENTER
-      info_message "Tmux session started! Attach to the session using ${bold_text}tmux attach-session -t ${tmux_session_name}${normal_text}"
+      start_node_using_tmux
       ;;
     *)
       ;;
@@ -382,9 +502,49 @@ start_node() {
   fi
 }
 
-update_display_name() {
-  if [ ! -z "$display_name" ]; then
-    sed -i "s/NodeDisplayName = \"[a-zA-Z0-9]*\"/NodeDisplayName = \"${display_name}\"/g" $node_path/cmd/node/config/config.toml
+start_node_using_regular_binary() {
+  info_message "Starting node using regular binary..."
+  
+  stop_nodes
+  
+  cd $node_path/cmd/node/ && ./node
+}
+
+start_node_using_systemd() {
+  info_message "Starting node using Systemd..."
+  
+  sudo systemctl stop elrond.service
+  sudo systemctl start elrond.service
+  sudo systemctl status elrond.service
+}
+
+start_node_using_tmux() {
+  if ! command -v tmux >/dev/null 2>&1; then
+    sudo apt-get -y install tmux  1> /dev/null 2>&1
+  fi
+  
+  stop_nodes
+  
+  info_message "Starting node using tmux..."
+  
+  tmux_session_name="elrond"
+  tmux kill-session -t "${tmux_session_name}"
+  tmux new-session -d -s "${tmux_session_name}"
+  tmux send -t "${tmux_session_name}" "cd ${node_path}/cmd/node && ./node" ENTER
+  
+  info_message "Tmux session started! Attach to the session using ${bold_text}tmux attach-session -t ${tmux_session_name}${normal_text}"
+}
+
+check_for_running_nodes() {
+  if ps aux | grep '[n]ode' > /dev/null; then
+    nodes_running=true
+  fi
+}
+
+stop_nodes() {
+  if [ "$nodes_running" = true ]; then
+    info_message "Stopping node(s)..."
+    for pid in `ps -ef | grep "[n]ode" | awk '{print $2}'`; do kill $pid; done
   fi
 }
 
@@ -453,13 +613,19 @@ perform_setup() {
   backup_keys
   
   install_git_repos
-  copy_configuration_files
-  compile_binaries
-  manage_keys
-  cleanup
+  
+  if [ "$git_release_updated" = true ]; then
+    backup_configuration_files
+    copy_configuration_files
+    compile_binaries
+    manage_keys
+    cleanup
+  fi
   
   update_display_name
+  
   install_systemd_unit
+  install_updater_systemd_unit
   
   start_node
 }
@@ -468,4 +634,24 @@ perform_setup() {
 #
 # Run the script
 #
-perform_setup
+run() {
+  if [ "$daemonize" = true ]; then
+    if [ "$node_mode" = "systemd" ] || [ "$node_mode" = "tmux" ]; then
+      # Run in an infinite loop
+      while [ 1 ]
+      do
+        perform_setup
+        echo ""
+        info_message "Waiting ${interval} before the next update check..."
+        sleep $interval
+      done
+    else
+      error_message "Unfortunately the daemonization mode only supports starting/restarting the node using systemd (--systemd) or tmux (--tmux). Use any of those options and run the script again."
+    fi
+
+  else
+    perform_setup
+  fi
+}
+
+run
