@@ -42,7 +42,7 @@ Options:
 Download and chmod the script:
 
 ```
-curl -LO https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
+curl -LOs https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
 ```
 
 ### Basic install: `./setup.sh`
@@ -53,16 +53,15 @@ If this is done on a VPS/instance that hasn't executed this script before GVM an
 
 Same as above, but will start the binary after installation is complete.
 
-### Set display name: `./setup.sh --start --display-name hello`
+### Set display name: `./setup.sh --display-name hello --start`
 
 Same as above, but also sets the display name for the node to "hello"
 
-
-### Using systemd: `./setup.sh --start --systemd --display-name hello`
+### Using systemd: `./setup.sh --display-name hello --start --systemd`
 
 Same as above, but will also install the Systemd unit and start the node using Systemd
 
-### Using tmux: `./setup.sh --start --tmux --display-name hello`
+### Using tmux: `./setup.sh --display-name hello --start --tmux`
 
 Like above, but node will be started in a tmux session called elrond.
 

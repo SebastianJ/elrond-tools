@@ -16,7 +16,7 @@ Options:
 ## Local usage example
 
 ```
-curl -LO https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/status/status.sh && chmod +x status.sh
+curl -LOs https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/status/status.sh && chmod +x status.sh
 ./status.sh
 ./status.sh --hosts someremotehost.com:8080,anotherremotehose.com:8080
 ```
