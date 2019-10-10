@@ -296,7 +296,7 @@ compile_binaries() {
     GO111MODULE=on go mod vendor 1> /dev/null 2>&1
     cd cmd/node
     info_message "Compiling binaries..."
-    go build -i -v -ldflags="-X main.appVersion=$(git describe --tags --long --dirty)"
+    go build -i -v -ldflags="-X main.appVersion=$(git describe --tags --long --dirty)" 1> /dev/null 2>&1
     success_message "Successfully compiled the binaries!"
   
     output_footer
