@@ -118,6 +118,8 @@ initialize() {
 set_variables() {
   base_path=$go_path/src/github.com/ElrondNetwork
   node_path=$base_path/elrond-go
+  node_binary_folder_path=$node_path/cmd/node
+  node_binary_path=$node_binary_folder_path/node
   config_path=$base_path/elrond-config
   tools_path=$HOME/elrond-tools
   
@@ -156,7 +158,7 @@ gvm_installation() {
     source $HOME/.gvm/scripts/gvm
     
     if ! cat $HOME/.bash_profile | grep ".gvm/scripts/gvm" > /dev/null; then
-      echo "[[ -s "$HOME/.gvm/scripts/gvm" ]] && source \"$HOME/.gvm/scripts/gvm\"" >> $HOME/.bash_profile
+      echo "[[ -s "\$HOME/.gvm/scripts/gvm" ]] && source \"\$HOME/.gvm/scripts/gvm\"" >> $HOME/.bash_profile
     fi
     
     if ! cat $HOME/.bash_profile | grep "export GOPATH" > /dev/null; then
@@ -185,11 +187,36 @@ gvm_installation() {
   fi
 }
 
+source_environment_variable_scripts() {
+  source $HOME/.gvm/scripts/gvm
+  source $HOME/.bash_profile
+}
+
+check_for_go() {
+  output_header "${header_index}. Installation - verifying go is present in your system"
+  ((header_index++))
+  
+  source_environment_variable_scripts
+  
+  if command -v go >/dev/null 2>&1; then
+    go_version=$(go version)
+    success_message "Successfully found go on your system!"
+    success_message "You're running version: ${go_version}"
+  else
+    error_message "Can't detect go on your system! Are you sure it's properly installed?"
+    exit 1
+  fi
+  
+  output_footer
+}
+
 install_git_repos() {
   output_header "${header_index}. Installation - installing/updating git repos elrond-go and elrond-config"
   ((header_index++))
   
   install_git_repo "go"
+  binary_release_tag=$release_tag
+  
   install_git_repo "config"
   
   output_footer
@@ -286,21 +313,43 @@ update_display_name() {
 # Compilation
 #
 
+binary_version() {
+  current_binary_version=$(cd ${node_binary_folder_path} && ./node --version)
+}
+
 compile_binaries() {
-  if ! test -f $node_path/cmd/node/node || [ "$git_release_updated" = true ]; then
-    output_header "${header_index}. Compilation - compiling node binary"
-    ((header_index++))
+  output_header "${header_index}. Compilation - compiling node binary (if required)"
+  ((header_index++))
   
+  if test -f $node_binary_path; then
+    binary_version
+    info_message "Your binary is currently version: ${current_binary_version}."
+    
+    is_current_binary_version=$(echo ${current_binary_version} | grep -oam 1 -E "${binary_release_tag}")
+    
+    if [ -z "$is_current_binary_version" ]; then
+      warning_message "Your binary version (${current_binary_version}) isn't built using the latest released code (${binary_release_tag}). Will recompile a new binary."
+      rm -rf $node_binary_path
+    else
+      success_message "Your binary is already compiled using the latest version (${binary_release_tag})!"
+    fi
+  fi
+  
+  if ! test -f $node_binary_path || [ "$git_release_updated" = true ]; then
     cd $node_path
-    info_message "Downloading go modules"
+    
+    info_message "Downloading go modules..."
     GO111MODULE=on go mod vendor 1> /dev/null 2>&1
     cd cmd/node
     info_message "Compiling binaries..."
     go build -i -v -ldflags="-X main.appVersion=$(git describe --tags --long --dirty)" 1> /dev/null 2>&1
-    success_message "Successfully compiled the binaries!"
-  
-    output_footer
+    
+    binary_version
+    success_message "Successfully compiled the node binary!"
+    success_message "Your node binary is now using version ${current_binary_version} ."
   fi
+  
+  output_footer
 }
 
 
@@ -610,6 +659,9 @@ perform_setup() {
   output_banner
   
   gvm_installation
+  
+  check_for_go
+  
   backup_keys
   
   install_git_repos
