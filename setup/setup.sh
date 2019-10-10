@@ -460,8 +460,7 @@ install_updater_systemd_unit() {
     sed -i "s/---USER---/${executing_user}/g" elrond.service
     
     info_message "Downloading setup script to ${tools_path}/setup.sh"
-    cd $tools_path
-    wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh
+    cd $tools_path && wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh
     
     info_message "Installing Systemd unit"
     sudo mv elrond-updater.service /lib/systemd/system/
