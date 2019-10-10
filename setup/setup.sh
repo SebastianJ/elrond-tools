@@ -287,18 +287,20 @@ update_display_name() {
 #
 
 compile_binaries() {
-  output_header "${header_index}. Compilation - compiling node binary"
-  ((header_index++))
+  if ! test -f $node_path/cmd/node/node || [ "$git_release_updated" = true ]; then
+    output_header "${header_index}. Compilation - compiling node binary"
+    ((header_index++))
   
-  cd $node_path
-  info_message "Downloading go modules"
-  GO111MODULE=on go mod vendor 1> /dev/null 2>&1
-  cd cmd/node
-  info_message "Compiling binaries..."
-  go build -i -v -ldflags="-X main.appVersion=$(git describe --tags --long --dirty)" 1> /dev/null 2>&1
-  success_message "Successfully compiled the binaries!"
+    cd $node_path
+    info_message "Downloading go modules"
+    GO111MODULE=on go mod vendor 1> /dev/null 2>&1
+    cd cmd/node
+    info_message "Compiling binaries..."
+    go build -i -v -ldflags="-X main.appVersion=$(git describe --tags --long --dirty)"
+    success_message "Successfully compiled the binaries!"
   
-  output_footer
+    output_footer
+  fi
 }
 
 
@@ -391,11 +393,10 @@ cleanup() {
     output_header "${header_index}. Cleanup - cleaning up files from previous installation"
     ((header_index++))
     
-    cd $node_path/cmd/node/config
+    cd $node_path/cmd/node
     
-    info_message "Removing logs and stats directories from previous installation."
-    
-    sudo rm -rf logs stats
+    info_message "Removing previous compiled node binary, logs and stats directories from previous installation."
+    rm -rf node logs stats
     
     if [ "$reset_database" = true ]; then
       info_message "Removing database file(s) from previous installation."
@@ -614,12 +615,13 @@ perform_setup() {
   install_git_repos
   
   if [ "$git_release_updated" = true ]; then
+    cleanup
     backup_configuration_files
     copy_configuration_files
-    compile_binaries
-    manage_keys
-    cleanup
   fi
+  
+  compile_binaries
+  manage_keys
   
   update_display_name
   
