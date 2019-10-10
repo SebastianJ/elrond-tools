@@ -5,13 +5,16 @@ Status script can can check one or multiple nodes at once.
 ## Arguments
 From `./status.sh --help`:
 
+```
 Usage: ./status.sh [option] command
 Options:
    --hosts          hosts   a comma separated/delimited list of hosts you want to check status for. E.g: --hosts localhost:8080,localhost:8081,localhost:8082
+   --file           path    path to file containing hosts to check status for
    --compact                compact output, skipping some unnecessary data
    --no-formatting          disable formatting (colors, bold text etc.), recommended when using the script output in emails etc.
    --debug                  debug mode, output original response etc.
    --help                   print this help
+```
 
 ## Local usage example
 
