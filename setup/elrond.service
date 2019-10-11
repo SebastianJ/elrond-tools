@@ -1,0 +1,22 @@
+[Unit]
+Description=Elrond Node
+After=network.target
+
+[Service]
+Type=simple
+Environment=GOPATH=/home/---USER---/go
+WorkingDirectory=---NODE_INSTANCE_PATH---
+ExecStart=/bin/bash -lc './node --use-log-view'
+User=---USER---
+Group=---USER---
+UMask=0002
+
+RestartSec=1
+Restart=always
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=Elrond ---NODE_INSTANCE_PORT---
+
+[Install]
+WantedBy=multi-user.target
