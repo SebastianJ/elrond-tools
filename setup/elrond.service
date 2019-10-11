@@ -1,5 +1,5 @@
 [Unit]
-Description=Elrond Node
+Description=Elrond Node (port ---NODE_INSTANCE_PORT---)
 After=network.target
 
 [Service]
