@@ -1,0 +1,22 @@
+[Unit]
+Description=Elrond Node Updater
+After=network.target
+
+[Service]
+Type=simple
+Environment=GOPATH=/home/---USER---/go
+WorkingDirectory=/home/---USER---/elrond/tools
+ExecStart=/bin/bash -lc './setup.sh --start --systemd --daemonize --interval 5m'
+User=---USER---
+Group=---USER---
+UMask=0002
+
+RestartSec=1
+Restart=always
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=Elrond-Updater
+
+[Install]
+WantedBy=multi-user.target
