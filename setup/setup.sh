@@ -18,10 +18,10 @@ Options:
    --reset-database                   removes/resets the database for node instances
    --gvm                              install go using gvm
    --go-version                       what version of golang to install, defaults to ${default_go_version}
-   --install-systemd                  install a systemd unit to manage the node process
    --install-auto-updater             install and run an auto-updater that automatically updates the git repos and compiles a new node binary when necessary
    --uninstall-auto-updater           uninstalls/removes the auto-updater
    --systemd                          use systemd for starting the node
+   --update-systemd-units             if currently installed Systemd units should be reinstalled (e.g. if they've been updated in the repo)
    --tmux                             use tmux for starting the node
    --start                            if the script should start the node after the setup process has completed
    --stop                             stops all running nodes
@@ -42,10 +42,10 @@ do
   --reset-database) reset_database=true ;;
   --gvm) install_gvm=true ;;
   --go-version) go_version="$2" ; shift;;
-  --install-systemd) install_systemd_unit=true ;;
   --install-auto-updater) install_auto_updater=true ;;
   --uninstall-auto-updater) uninstall_auto_updater=true ;;
   --systemd) node_mode="systemd" ;;
+  --update-systemd-units) update_systemd_units=true ;;
   --tmux) node_mode="tmux" ;;
   --start) start_node=true ;;
   --stop) stop_nodes=true ;;
@@ -95,16 +95,16 @@ set_default_option_values() {
     reset_database=false
   fi
   
-  if [ -z "$install_systemd_unit" ]; then
-    install_systemd_unit=false
-  fi
-  
   if [ -z "$install_auto_updater" ]; then
     install_auto_updater=false
   fi
   
   if [ -z "$uninstall_auto_updater" ]; then
     uninstall_auto_updater=false
+  fi
+  
+  if [ -z "$update_systemd_units" ]; then
+    update_systemd_units=false
   fi
   
   if [ -z "$node_mode" ]; then
@@ -356,19 +356,22 @@ update_git_repo() {
 # Configuration management
 #
 copy_build_configuration_files() {
-  output_header "${header_index}. Build - copying configuration files to build folder"
-  ((header_index++))
+  if [ -z "$matches_current_binary_version" ]; then
+    output_header "${header_index}. Build - copying configuration files to build folder"
+    ((header_index++))
   
-  cd $node_build_path/cmd/node/config
-  rm -rf $configuration_files
+    cd $node_build_path/cmd/node
+    rm -rf config
+    mkdir -p config
   
-  cp $config_path/*.* $node_build_path/cmd/node/config
+    cp $config_path/*.* $node_build_path/cmd/node/config
   
-  if test -f $node_build_path/cmd/node/config/config.toml; then
-    success_message "Successfully copied the configuration files over to ${node_build_path}/cmd/node/config"
+    if test -f $node_build_path/cmd/node/config/config.toml; then
+      success_message "Successfully copied the configuration files over to ${node_build_path}/cmd/node/config"
+    fi
+  
+    output_footer
   fi
-  
-  output_footer
 }
 
 
@@ -433,7 +436,6 @@ compile_binaries() {
 download_and_setup_systemd_unit() {
   # File name: elrond
   local file_name=$1
-  
   local unit_name=$file_name
   local suffix=$2
   
@@ -445,33 +447,44 @@ download_and_setup_systemd_unit() {
   # Unit name: elrond@8080.service
   unit_name=$unit_name.service
   
-  cd $HOME
+  if [ "$update_systemd_units" = true ] || ! test -f /lib/systemd/system/$unit_name; then
+    output_sub_header "Systemd - installing Systemd unit"
+    
+    if [ "$update_systemd_units" = true ]; then
+      sudo systemctl stop $unit_name 1> /dev/null 2>&1
+      sudo systemctl disable $unit_name  1> /dev/null 2>&1
+      sudo systemctl daemon-reload 1> /dev/null 2>&1
+      sudo rm -rf /lib/systemd/system/$unit_name
+    fi
   
-  sudo systemctl stop $unit_name 1> /dev/null 2>&1
-  sudo systemctl disable $unit_name  1> /dev/null 2>&1
-  sudo systemctl daemon-reload 1> /dev/null 2>&1
+    if ! test -f /lib/systemd/system/$unit_name; then
+      cd $HOME
+    
+      info_message "Downloading Systemd Unit ${file_name} ..."
+      rm -rf $file_name
+      wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/$file_name
   
-  info_message "Downloading Systemd Unit ${file_name} ..."
-  rm -rf $file_name
-  wget -q https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/$file_name
+      info_message "Updating ${file_name} to use correct settings"
+      sed -i "s/---USER---/${executing_user}/g" $file_name
   
-  info_message "Updating ${file_name} to use correct settings"
-  sed -i "s/---USER---/${executing_user}/g" $file_name
+      if [ ! -z "$suffix" ]; then
+        sed -i "s|---NODE_INSTANCE_PATH---|${node_instance_node_path}|g" $file_name
+        sed -i "s/---NODE_INSTANCE_PORT---/${port_alias}/g" $file_name
+        mv $file_name $unit_name
+      fi
   
-  if [ ! -z "$suffix" ]; then
-    sed -i "s|---NODE_INSTANCE_PATH---|${node_instance_node_path}|g" $file_name
-    sed -i "s/---NODE_INSTANCE_PORT---/${port_alias}/g" $file_name
-    mv $file_name $unit_name
+      info_message "Installing ${unit_name} ..."
+  
+      sudo rm -rf /lib/systemd/system/$unit_name
+      sudo mv $unit_name /lib/systemd/system/
+      sudo systemctl daemon-reload 1> /dev/null 2>&1
+      sudo systemctl enable $unit_name 1> /dev/null 2>&1
+  
+      success_message "Successfully installed ${unit_name}!"
+    fi
+    
+    output_sub_footer
   fi
-  
-  info_message "Installing ${unit_name} ..."
-  
-  sudo rm -rf /lib/systemd/system/$unit_name
-  sudo mv $unit_name /lib/systemd/system/
-  sudo systemctl daemon-reload 1> /dev/null 2>&1
-  sudo systemctl enable $unit_name 1> /dev/null 2>&1
-  
-  success_message "Successfully installed ${unit_name}!"
 }
 
 
@@ -518,7 +531,7 @@ convert_index_to_port_alias() {
 #
 install_auto_updater() {
   if [ "$install_auto_updater" = true ]; then
-    output_header "${header_index}. Auto-update - installing auto-updater"
+    output_header "${header_index}. Auto-updater - installing auto-updater"
     ((header_index++))
     
     case $node_mode in
@@ -551,7 +564,7 @@ install_auto_updater_script() {
 }
 
 install_systemd_auto_updater() {
-  install_auto_updater_script 
+  install_auto_updater_script
     
   download_and_setup_systemd_unit "elrond-updater"
   
@@ -620,6 +633,7 @@ manage_node() {
   manage_keys
   set_display_name
   install_node_systemd_unit
+  
   start_node
   
   output_footer
@@ -816,12 +830,8 @@ manage_keys() {
 # Systemd: node specific
 #
 install_node_systemd_unit() {
-  if [ "$install_systemd_unit" = true ]; then
-    output_sub_header "Systemd - installing Systemd unit"
-    
+  if [ "$node_mode" = "systemd" ]; then
     download_and_setup_systemd_unit "elrond" "${port_alias}"
-    
-    output_sub_footer
   fi
 }
 
@@ -867,11 +877,24 @@ start_node_using_regular_binary() {
 start_node_using_systemd() {
   local service_name=elrond@$port_alias.service
   
-  info_message "Starting node using Systemd unit ${service_name}..."
+  info_message "Potentially starting/restarting node using Systemd unit ${service_name}..."
   
   if test -f /lib/systemd/system/$service_name; then
-    sudo systemctl stop $service_name
-    sudo systemctl start $service_name
+    already_started=$(systemctl is-active $service_name)
+    
+    if ! systemctl is-active --quiet $service_name || [ "$git_release_updated" = true ] || [ "$binary_compiled" = true ]; then
+      sudo systemctl stop $service_name
+      sudo systemctl start $service_name
+      
+      if systemctl is-active --quiet $service_name; then
+        success_message "Successfully started node using Systemd unit ${service_name}!"
+      fi
+    else
+      info_message "Node doesn't have to be restarted right now - no changes have occurred."
+    fi
+    
+    echo ""
+    info_message "Current status for ${service_name}:"
     sudo systemctl status $service_name
     
     systemd_units+=("$service_name")
@@ -926,11 +949,18 @@ display_node_summary() {
   fi
   
   if (( ${#systemd_units[@]} )); then
-    echo ""
+    echo
     info_message "${bold_text}Your installed Systemd units:${normal_text}"
+    echo 
     
     for systemd_unit in "${systemd_units[@]}"; do
-    	info_message "${systemd_unit} - ${bold_text}manage the node using sudo systemctl (start|stop|restart|status) ${systemd_unit}${normal_text}"
+    	info_message "${bold_text}${systemd_unit}${normal_text}"
+      info_message "Manage the node via Systemd using the following commands:"
+      info_message "\tstart: ${bold_text}sudo systemctl start ${systemd_unit}${normal_text}"
+      info_message "\tstop: ${bold_text}sudo systemctl stop ${systemd_unit}${normal_text}"
+      info_message "\trestart: ${bold_text}sudo systemctl restart ${systemd_unit}${normal_text}"
+      info_message "\tstatus: ${bold_text}sudo systemctl status ${systemd_unit}${normal_text}"
+      echo
     done
   fi
   
@@ -954,7 +984,7 @@ set_formatting() {
 }
 
 info_message() {
-  echo ${1}
+  echo -e "${1}"
 }
 
 success_message() {
@@ -1016,6 +1046,11 @@ run_setup() {
   
   output_banner
   
+  if [ "$install_auto_updater" = true ]; then
+    error_message "You need to run --install-auto-updater together with the --auto-updater parameter, e.g: ./setup.sh --auto-updater --install-auto-updater"
+    exit 0
+  fi
+  
   if [ "$stop_nodes" = true ]; then
     stop_nodes
     info_message "Stopped nodes!"
@@ -1050,6 +1085,7 @@ run_auto_updater() {
     initialize
     output_banner
     install_auto_updater
+    exit 0
   else
     run_setup
   fi

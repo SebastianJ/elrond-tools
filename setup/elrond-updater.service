@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 Environment=GOPATH=/home/---USER---/go
 WorkingDirectory=/home/---USER---/elrond/tools
-ExecStart=/bin/bash -lc './setup.sh --start --systemd --daemonize --interval 5m'
+ExecStart=/bin/bash -lc './setup.sh --auto-updater --start --systemd --interval 5m'
 User=---USER---
 Group=---USER---
 UMask=0002
