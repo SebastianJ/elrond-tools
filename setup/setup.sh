@@ -172,6 +172,7 @@ set_state_variables() {
   nodes_running=false
   nodes_already_stopped=false
   binary_compiled=false
+  node_display_name_updated=false
   unset hosts
   unset tmux_sessions
   unset systemd_units
@@ -356,7 +357,7 @@ update_git_repo() {
 # Configuration management
 #
 copy_build_configuration_files() {
-  if [ -z "$matches_current_binary_version" ]; then
+  if [ -z "$matches_current_binary_version" ] || [ "$git_release_updated" = true ] || [ "$binary_compiled" = true ]; then
     output_header "${header_index}. Build - copying configuration files to build folder"
     ((header_index++))
   
@@ -735,6 +736,7 @@ generate_node_display_name() {
 
 update_node_display_name() {
   sed -i "s/NodeDisplayName = \"[^\"]*\"/NodeDisplayName = \"${1}\"/g" $node_instance_node_config_path/config.toml
+  node_display_name_updated=true
 }
 
 parse_current_display_name() {
@@ -882,7 +884,7 @@ start_node_using_systemd() {
   if test -f /lib/systemd/system/$service_name; then
     already_started=$(systemctl is-active $service_name)
     
-    if ! systemctl is-active --quiet $service_name || [ "$git_release_updated" = true ] || [ "$binary_compiled" = true ]; then
+    if ! systemctl is-active --quiet $service_name || [ "$git_release_updated" = true ] || [ "$binary_compiled" = true ] || [ "$node_display_name_updated" = true ]; then
       sudo systemctl stop $service_name
       sudo systemctl start $service_name
       
