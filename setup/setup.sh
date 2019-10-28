@@ -911,10 +911,10 @@ start_node_using_regular_binary() {
   if (( node_count > 1 )); then
     error_message "You can only start one node at a time in the normal boot mode."
     error_message "Use --tmux or --systemd to start multiple nodes at once."
-    error_message "You can also start this specific node instance in a separate session/window using cd ${node_instance_node_path} && ./node"
+    error_message "You can also start this specific node instance in a separate session/window using cd ${node_instance_node_path} && ./node --rest-api-port ${port_alias}"
   else
     info_message "Starting node using regular binary..."
-    cd $node_instance_node_path && ./node
+    cd $node_instance_node_path && ./node --rest-api-port $port_alias
   fi
 }
 
@@ -951,12 +951,12 @@ start_node_using_tmux() {
   stop_nodes
   local tmux_session_name="elrond-${port_alias}"
   
-  launch_tmux_session "${tmux_session_name}" "cd ${node_instance_node_path} && ./node"
+  launch_tmux_session "${tmux_session_name}" "cd ${node_instance_node_path} && ./node --rest-api-port ${port_alias}"
   tmux_sessions+=("${tmux_session_name}")
 }
 
 check_for_running_nodes() {
-  if ps aux | grep "[n]ode" > /dev/null; then
+  if ps aux | grep "[n]ode" | grep "\-\-rest\-api\-port" > /dev/null; then
     nodes_running=true
   fi
 }
@@ -966,7 +966,7 @@ stop_nodes() {
   
   if [ "$nodes_running" = true ] && [ "$nodes_already_stopped" = false ]; then
     info_message "Stopping node(s)..."
-    for pid in `ps -ef | grep "[n]ode" | awk '{print $2}'`; do kill $pid; done
+    for pid in `ps -ef | grep "[n]ode" | grep "\-\-rest\-api\-port" | awk '{print $2}'`; do kill $pid; done
     nodes_already_stopped=true
   fi
 }
