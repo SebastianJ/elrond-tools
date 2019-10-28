@@ -93,3 +93,13 @@ After a regular setup, install everything required for Systemd and then start th
 
 `./setup.sh --install-systemd --install-updater --start --systemd`
 
+## Multi-node install
+The script is multi-node compatible. It will install and name nodes according to the REST API ports. The default is 8080, so it'll install the first node in $elrond_path/nodes/8080, next node will be installed in $elrond_path/nodes/8081 etc. Let's say your $elrond_path is the default (~/elrond) then the nodes will be created in ~/elrond/nodes/8080 and ~/elrond/nodes/8081 respectively.
+
+The first time you run the script it'll look for keys named after the rest-api port in $elrond_path/keys or $HOME, so essentially ~/elrond/keys and ~/ if you use the defaults. For every node you want to install and to use an existing key pair, create one zip file for each key pair and name them according to the REST API port the node will be running on.
+
+Let's say that you want to run two nodes and use the default settings (REST API ports 8080 and 8081).
+In order for the script to correctly identify your keypairs you have to name them keys-8080.zip and keys-8081.zip and place them in $elrond_path/keys or $HOME (~/elrond/keys or ~/ if using default settings).
+
+The script will copy the identified scripts to the correct node folders in $elrond_path/nodes/REST_API_PORT/node/config (e.g. ~/elrond/nodes/8080/node/config and ~/elrond/nodes/8081/node/config for default installations).
+

@@ -135,9 +135,9 @@ set_default_option_values() {
 
 initialize() {
   set_variables
+  create_base_directories
   set_state_variables
   set_default_option_values
-  create_base_directories
   
   if [ "$full_reinstall" = true ]; then
     rm -rf $base_build_path && mkdir -p $base_build_path
