@@ -11,11 +11,13 @@ usage() {
 Usage: $0 [option] command
 Options:
    --nodes                    count   the number of nodes you want to install
+   --path                     path    where the node data, keys and backups will be installed, defaults to $HOME/elrond
    --go-path                  path    the go path where files should be installed, will default to $GOPATH
    --display-name             name    the display name for the node
    --reinstall                        perform a clean / full reinstall (make sure you have backed up your keys before doing this!)
+   --default-port             port    the default port that will be the base to start nodes from, default is 8080
    --backup-database                  backup node instance databases
-   --reset-database                   removes/resets the database for node instances
+   --remove-database                  removes/resets the database for node instances
    --gvm                              install go using gvm
    --go-version                       what version of golang to install, defaults to ${default_go_version}
    --install-auto-updater             install and run an auto-updater that automatically updates the git repos and compiles a new node binary when necessary
@@ -35,11 +37,13 @@ while [ $# -gt 0 ]
 do
   case $1 in
   --nodes) node_count="$2" ; shift;;
+  --path) elrond_path="${2%/}" ; shift;;
   --go-path) go_path="${2%/}" ; shift;;
   --display-name) display_name="$2" ; shift;;
   --reinstall) full_reinstall=true ;;
+  --default-port) default_port="$2" ; shift;;
   --backup-database) backup_database=true ;;
-  --reset-database) reset_database=true ;;
+  --remove-database) remove_database=true ;;
   --gvm) install_gvm=true ;;
   --go-version) go_version="$2" ; shift;;
   --install-auto-updater) install_auto_updater=true ;;
@@ -70,6 +74,13 @@ set_default_option_values() {
     convert_to_integer "$node_count"
     node_count=$converted
   fi
+  
+  if [ -z "$default_port" ]; then
+    default_port=8080
+  else
+    convert_to_integer "$default_port"
+    default_port=$converted
+  fi
 
   if [ -z "$start_node" ]; then
     start_node=false
@@ -91,8 +102,8 @@ set_default_option_values() {
     backup_database=false
   fi
   
-  if [ -z "$reset_database" ]; then
-    reset_database=false
+  if [ -z "$remove_database" ]; then
+    remove_database=false
   fi
   
   if [ -z "$install_auto_updater" ]; then
@@ -123,11 +134,10 @@ set_default_option_values() {
 }
 
 initialize() {
-  executing_user=$(whoami)
   set_variables
   set_state_variables
   set_default_option_values
-  
+  create_base_directories
   
   if [ "$full_reinstall" = true ]; then
     rm -rf $base_build_path && mkdir -p $base_build_path
@@ -138,33 +148,39 @@ initialize() {
 
 set_variables() {
   # Must be set here because of the variables that depend on it
+  if [ -z "$elrond_path" ]; then
+    elrond_path=$HOME/elrond
+  fi
+  
   if [ -z "$go_path" ]; then
     go_path=$HOME/go
   fi
+  
+  executing_user=$(whoami)
+  configuration_files="config.toml economics.toml genesis.json nodesSetup.json p2p.toml prefs.toml server.toml"
   
   base_build_path=$go_path/src/github.com/ElrondNetwork
   node_build_path=$base_build_path/elrond-go
   node_build_binary_folder_path=$node_build_path/cmd/node
   node_build_binary_path=$node_build_binary_folder_path/node
   config_path=$base_build_path/elrond-config
-  tools_path=$HOME/elrond/tools
   
-  node_instances_base=$HOME/elrond/nodes
+  keys_path=$elrond_path/keys
+  alternative_keys_path=$HOME
   
-  keys_archive=$HOME/keys.tar.gz
-  configs_archive=$HOME/configs.tar.gz
-  
-  default_port=8080
-  
-  configuration_files="config.toml economics.toml genesis.json nodesSetup.json p2p.toml server.toml"
+  tools_path=$elrond_path/tools
+  nodes_path=$elrond_path/nodes
   
   if test -d $node_build_path; then
     install_method="update"
   else
     install_method="install"
   fi
-  
+}
+
+create_base_directories() {
   mkdir -p $base_build_path
+  mkdir -p $keys_path $tools_path $nodes_path
 }
 
 set_state_variables() {
@@ -179,6 +195,20 @@ set_state_variables() {
   declare -ag hosts
   declare -ag tmux_sessions
   declare -ag systemd_units
+}
+
+check_dependencies() {
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "curl is required to run this script."
+    echo "Please install it using sudo apt-get install curl"
+    exit 1
+  fi
+  
+  if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+    echo "zip and unzip are required to run this script."
+    echo "Please install them using sudo apt-get install zip unzip"
+    exit 1
+  fi
 }
 
 #
@@ -586,8 +616,8 @@ install_tmux_auto_updater() {
 }
 
 identify_node_count() {
-  node_count=$(ls -1q $node_instances_base | wc -l)
-  info_message "Identified ${bold_text}${node_count} node(s)${normal_text} in ${bold_text}${node_instances_base}${normal_text}"
+  node_count=$(ls -1q $nodes_path | wc -l)
+  info_message "Identified ${bold_text}${node_count} node(s)${normal_text} in ${bold_text}${nodes_path}${normal_text}"
 }
 
 #
@@ -610,17 +640,18 @@ manage_node() {
   node_id=$((node_index+1))
   hosts+=("localhost:${port_alias}")
   
-  node_instance_path=$node_instances_base/$port_alias
+  node_instance_path=$nodes_path/$port_alias
   node_instance_node_path=$node_instance_path/node
   node_instance_node_config_path=$node_instance_path/node/config
   node_instance_backups_path=$node_instance_path/backups
-  node_instance_keys_archive=$node_instance_backups_path/keys.tar.gz
-  node_instance_configs_archive=$node_instance_backups_path/configs.tar.gz
+  node_instance_keys_archive=$node_instance_backups_path/keys.zip
+  node_instance_configs_archive=$node_instance_backups_path/configs.zip
   
   output_header "${header_index}. Node ${port_alias}: Performing actions"
   ((header_index++))
   
   create_node_directories
+  use_existing_keys
   backup_keys
   compare_node_binary_version_with_release_version
   
@@ -641,8 +672,8 @@ manage_node() {
 }
 
 create_node_directories() {
-  mkdir -p $node_instances_base/$port_alias/node/config
-  mkdir -p $node_instances_base/$port_alias/backups
+  mkdir -p $nodes_path/$port_alias/node/config
+  mkdir -p $nodes_path/$port_alias/backups
 }
 
 cleanup_previous_node_build() {  
@@ -654,7 +685,7 @@ cleanup_previous_node_build() {
     info_message "Removing previous compiled node binary, logs and stats directories from previous installation."
     rm -rf config node node.go logs stats
     
-    if [ "$reset_database" = true ]; then
+    if [ "$remove_database" = true ]; then
       info_message "Removing database file(s) from previous installation."
       sudo rm -rf db
     fi
@@ -694,21 +725,22 @@ copy_build() {
 # Configuration management
 #
 backup_node_configuration_files() {
-  local archive_name="configs.tar.gz"
+  local archive_name="configs.zip"
   
   if ls -d $node_instance_node_path/config/*.toml 1> /dev/null 2>&1; then
     output_sub_header "Configuration - backing up existing configuration files"
     
     rm -rf $node_instance_configs_archive
     
-    info_message "Backing up existing configuration files from ${node_instance_path}/node/config to ${node_instance_path}/backups/configs.tar.gz ..."
+    info_message "Backing up existing configuration files from ${node_instance_path}/node/config to ${node_instance_path}/backups/configs.zip ..."
     
     cd $node_instance_node_path/config
-    tar -czvf ${archive_name} ${configuration_files} 1> /dev/null 2>&1
+    
+    zip -qj ${archive_name} ${configuration_files}
     mv ${archive_name} $node_instance_path/backups/
     
-    if test -f $node_instance_path/backups/configs.tar.gz; then
-      success_message "Successfully backed up previous configuration files to ${node_instance_path}/backups/configs.tar.gz!"
+    if test -f $node_instance_path/backups/configs.zip; then
+      success_message "Successfully backed up previous configuration files to ${node_instance_path}/backups/configs.zip!"
     fi
     
     output_sub_footer
@@ -735,13 +767,13 @@ generate_node_display_name() {
 }
 
 update_node_display_name() {
-  sed -i "s/NodeDisplayName = \"[^\"]*\"/NodeDisplayName = \"${1}\"/g" $node_instance_node_config_path/config.toml
+  sed -i "s/NodeDisplayName = \"[^\"]*\"/NodeDisplayName = \"${1}\"/g" $node_instance_node_config_path/prefs.toml
   node_display_name_updated=true
 }
 
 parse_current_display_name() {
-  if [ "$install_method" = "update" ] && test -f $node_instance_node_config_path/config.toml; then
-    current_display_name=$(cat $node_instance_node_config_path/config.toml | grep -oam 1 "NodeDisplayName = \"[^\"]*\"" | grep -oam 1 "\"[^\"]*\"" | tr -d '"')
+  if [ "$install_method" = "update" ] && test -f $node_instance_node_config_path/prefs.toml; then
+    current_display_name=$(cat $node_instance_node_config_path/prefs.toml | grep -oam 1 "NodeDisplayName = \"[^\"]*\"" | grep -oam 1 "\"[^\"]*\"" | tr -d '"')
   fi
 }
 
@@ -759,7 +791,17 @@ compare_node_binary_version_with_release_version() {
 
 #
 # Key management
-# 
+#
+use_existing_keys() {
+  # Try to first see if the keys have been placed in the keys folder, e.g. $HOME/elrond/keys/keys-8080.zip
+  if test -f $keys_path/keys-$port_alias.zip; then
+    cp $keys_path/keys-$port_alias.zip $node_instance_keys_archive
+  # Or try to look for them, in the home folder, e.g: $HOME/keys-8080.zip
+  elif test -f $alternative_keys_path/keys-$port_alias.zip; then
+    cp $alternative_keys_path/keys-$port_alias.zip $node_instance_keys_archive
+  fi
+}
+
 backup_keys() {  
   if ! test -f $node_instance_keys_archive && ls -d $node_instance_node_path/config/*.pem 1> /dev/null 2>&1; then
     output_sub_header "Keys - backing up keys"
@@ -767,8 +809,8 @@ backup_keys() {
     info_message "Backing up keys from ${node_instance_node_path}/config to ${node_instance_keys_archive}..."
     
     cd $node_instance_node_path/config
-    tar -czvf keys.tar.gz *.pem 1> /dev/null 2>&1
-    mv keys.tar.gz $node_instance_backups_path
+    zip -qj keys-$port_alias.zip *.pem
+    mv keys-$port_alias.zip $node_instance_backups_path
     
     if test -f $node_instance_keys_archive; then
       success_message "Successfully backed up keys to ${node_instance_keys_archive}!"
@@ -814,8 +856,8 @@ copy_keys() {
   
     cp $node_instance_keys_archive $node_instance_node_path/config/
     cd $node_instance_node_path/config
-    tar -xzvf *.tar.gz 1> /dev/null 2>&1
-    rm -rf *.tar.gz
+    unzip -qj *.zip
+    rm -rf *.zip
   
     success_message "Successfully copied existing keys from ${node_instance_keys_archive} to ${node_instance_node_path}/config"
   
@@ -1047,6 +1089,8 @@ run_setup() {
   initialize
   
   output_banner
+  
+  check_dependencies
   
   if [ "$install_auto_updater" = true ]; then
     error_message "You need to run --install-auto-updater together with the --auto-updater parameter, e.g: ./setup.sh --auto-updater --install-auto-updater"
