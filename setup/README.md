@@ -21,20 +21,26 @@ From `./setup.sh --help`:
 ```
 Usage: ./setup.sh [option] command
 Options:
-   --go-path        path  the go path where files should be installed, will default to /home/deploy/go
-   --display-name   name  the display name for the node
-   --reinstall            perform a clean / full reinstall (make sure you have backed up your keys before doing this!)
-   --reset-database       resets the database for an existing installation
-   --gvm                  force installation/reinstallation of gvm and go
-   --go-version           what version of golang to install, defaults to go1.13.1
-   --install-systemd      install a systemd unit to manage the node process
-   --install-updater      install a systemd unit for the auto-updater
-   --systemd              use systemd for starting the node
-   --tmux                 use tmux for starting the node
-   --start                if the script should start the node after the setup process has completed
-   --daemonize            if the script should daemonize itself / run in an endless loop
-   --interval             how often the script should run while daemonized / running in the endless loop
-   --help                 print this help
+   --nodes                    count   the number of nodes you want to install
+   --path                     path    where the node data, keys and backups will be installed, defaults to $HOME/elrond
+   --go-path                  path    the go path where files should be installed, will default to $HOME/go
+   --display-name             name    the display name for the node
+   --reinstall                        perform a clean / full reinstall (make sure you have backed up your keys before doing this!)
+   --default-port             port    the default port that will be the base to start nodes from, default is 8080
+   --backup-database                  backup node instance databases
+   --remove-database                  removes/resets the database for node instances
+   --gvm                              install go using gvm
+   --go-version                       what version of golang to install, defaults to go1.13.1
+   --install-auto-updater             install and run an auto-updater that automatically updates the git repos and compiles a new node binary when necessary
+   --uninstall-auto-updater           uninstalls/removes the auto-updater
+   --systemd                          use systemd for starting the node
+   --update-systemd-units             if currently installed Systemd units should be reinstalled (e.g. if they've been updated in the repo)
+   --tmux                             use tmux for starting the node
+   --start                            if the script should start the node after the setup process has completed
+   --stop                             stops all running nodes
+   --auto-updater                     if the script should run in auto-updater node
+   --interval                         how often the script should run while running in auto-updater mode
+   --help                             print this help
 ```
 
 ## Local installation examples
