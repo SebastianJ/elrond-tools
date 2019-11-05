@@ -11,6 +11,9 @@ User=---USER---
 Group=---USER---
 UMask=0002
 
+LimitNOFILE=4096
+LimitNPROC=4096
+
 RestartSec=1
 Restart=always
 
