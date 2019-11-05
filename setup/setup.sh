@@ -17,6 +17,7 @@ Options:
    --reinstall                        perform a clean / full reinstall (make sure you have backed up your keys before doing this!)
    --default-port             port    the default port that will be the base to start nodes from, default is 8080
    --backup-database                  backup node instance databases
+   --restore-database                 restore node instance databases
    --remove-database                  removes/resets the database for node instances
    --gvm                              install go using gvm
    --go-version                       what version of golang to install, defaults to ${default_go_version}
@@ -43,6 +44,7 @@ do
   --reinstall) full_reinstall=true ;;
   --default-port) default_port="$2" ; shift;;
   --backup-database) backup_database=true ;;
+  --restore-database) restore_database=true ;;
   --remove-database) remove_database=true ;;
   --gvm) install_gvm=true ;;
   --go-version) go_version="$2" ; shift;;
@@ -100,6 +102,10 @@ set_default_option_values() {
   
   if [ -z "$backup_database" ]; then
     backup_database=false
+  fi
+  
+  if [ -z "$restore_database" ]; then
+    restore_database=false
   fi
   
   if [ -z "$remove_database" ]; then
@@ -245,6 +251,8 @@ regular_go_installation() {
     curl -LOs https://dl.google.com/go/$go_version.linux-amd64.tar.gz
     sudo tar -xzf $go_version.linux-amd64.tar.gz -C /usr/local
     rm -rf $go_version.linux-amd64.tar.gz
+    
+    touch $HOME/.bash_profile
     
     if ! cat $HOME/.bash_profile | grep "export GOROOT" > /dev/null; then
       echo "export GOROOT=/usr/local/go" >> $HOME/.bash_profile
@@ -643,13 +651,16 @@ manage_node() {
   node_instance_path=$nodes_path/$port_alias
   node_instance_node_path=$node_instance_path/node
   node_instance_node_config_path=$node_instance_path/node/config
+  node_instance_node_db_path=$node_instance_path/node/db
   node_instance_backups_path=$node_instance_path/backups
+  node_instance_db_archive=$node_instance_backups_path/db.zip
   node_instance_keys_archive=$node_instance_backups_path/keys.zip
   node_instance_configs_archive=$node_instance_backups_path/configs.zip
   
   output_header "${header_index}. Node ${port_alias}: Performing actions"
   ((header_index++))
   
+  backup_node_database
   create_node_directories
   use_existing_keys
   backup_keys
@@ -680,7 +691,7 @@ cleanup_previous_node_build() {
   if [ "$install_method" = "update" ] && [ "$full_reinstall" = false ]; then
     output_sub_header "Cleanup - cleaning up files from previous installation"
     
-    cd $node_instance_path
+    cd $node_instance_node_path
     
     info_message "Removing previous compiled node binary, logs and stats directories from previous installation."
     rm -rf config node node.go logs stats
@@ -790,14 +801,50 @@ compare_node_binary_version_with_release_version() {
 }
 
 #
+# Database
+# 
+backup_node_database() {
+  if [ "$backup_database" = true ]; then
+    output_sub_header "Database - backing up existing database"
+    
+    info_message "Backing up database to ${node_instance_db_archive}..."
+    
+    rm -rf $node_instance_db_archive
+    cd $node_instance_node_path
+    zip -qr db.zip db
+    mv db.zip $node_instance_backups_path
+    
+    info_message "Database successfully backed up to ${node_instance_db_archive}!"
+  fi
+}
+
+restore_node_database() {
+  if [ "$restore_database" = true ] && test -f $node_instance_db_archive; then
+    output_sub_header "Database - restoring existing database"
+    
+    info_message "Restoring existing database from ${node_instance_db_archive}..."
+    
+    cd $node_instance_node_path
+    rm -rf db
+    cp $node_instance_db_archive $node_instance_node_path
+    unzip -q db.zip
+    rm -rf db.zip
+    
+    info_message "Successfully restored database from ${node_instance_db_archive}!"
+  fi
+}
+
+#
 # Key management
 #
 use_existing_keys() {
   # Try to first see if the keys have been placed in the keys folder, e.g. $HOME/elrond/keys/keys-8080.zip
   if test -f $keys_path/keys-$port_alias.zip; then
+    rm -rf $node_instance_keys_archive
     cp $keys_path/keys-$port_alias.zip $node_instance_keys_archive
   # Or try to look for them, in the home folder, e.g: $HOME/keys-8080.zip
   elif test -f $alternative_keys_path/keys-$port_alias.zip; then
+    rm -rf $node_instance_keys_archive
     cp $alternative_keys_path/keys-$port_alias.zip $node_instance_keys_archive
   fi
 }
