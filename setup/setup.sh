@@ -674,6 +674,7 @@ manage_node() {
   fi
   
   manage_keys
+  restore_node_database
   set_display_name
   install_node_systemd_unit
   
@@ -831,6 +832,7 @@ restore_node_database() {
     rm -rf db.zip
     
     info_message "Successfully restored database from ${node_instance_db_archive}!"
+    echo ""
   fi
 }
 
