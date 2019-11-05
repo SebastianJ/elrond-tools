@@ -1,5 +1,5 @@
 #!/bin/bash
-version="0.0.2"
+version="0.0.3"
 script_name="setup.sh"
 default_go_version="go1.13.1"
 
