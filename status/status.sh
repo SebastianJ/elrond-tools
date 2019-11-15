@@ -241,7 +241,17 @@ parse_variables_from_json() {
   current_block_size=$value
   
   current_round=$(echo "${response}" | jq ".${tag_prefix}current_round")
+  
+  if [ -z "$current_round" ] || [ "$current_round" = "null" ]; then
+    current_round="0"
+  fi
+  
   synchronized_round=$(echo "${response}" | jq ".${tag_prefix}synchronized_round")
+  
+  if [ -z "$synchronized_round" ] || [ "$synchronized_round" = "null" ]; then
+    synchronized_round="0"
+  fi
+  
   current_round_timestamp=$(echo "${response}" | jq ".${tag_prefix}current_round_timestamp")
   
   # Network
@@ -250,7 +260,13 @@ parse_variables_from_json() {
   connected_nodes=$(echo "${response}" | jq ".${tag_prefix}connected_nodes")
   live_validator_nodes=$(echo "${response}" | jq ".${tag_prefix}live_validator_nodes")
   is_syncing=$(echo "${response}" | jq ".${tag_prefix}is_syncing")
+  
   nonce=$(echo "${response}" | jq ".${tag_prefix}nonce")
+  
+  if [ -z "$nonce" ] || [ "$nonce" = "null" ]; then
+    nonce="0"
+  fi
+  
   probable_highest_nonce=$(echo "${response}" | jq ".${tag_prefix}probable_highest_nonce")
   round_time=$(echo "${response}" | jq ".${tag_prefix}round_time")
   
