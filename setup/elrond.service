@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 Environment=GOPATH=/home/---USER---/go
 WorkingDirectory=---NODE_INSTANCE_PATH---
-ExecStart=/bin/bash -lc './node --use-log-view --rest-api-interface ---NODE_INSTANCE_PORT---'
+ExecStart=/bin/bash -lc './node --use-log-view --rest-api-interface localhost:---NODE_INSTANCE_PORT---'
 User=---USER---
 Group=---USER---
 UMask=0002
