@@ -1,7 +1,7 @@
 #!/bin/bash
 version="0.0.3"
 script_name="setup.sh"
-default_go_version="go1.13.1"
+default_go_version="go1.13.4"
 
 #
 # Arguments/configuration
