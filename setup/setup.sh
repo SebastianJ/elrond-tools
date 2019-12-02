@@ -182,6 +182,12 @@ set_variables() {
   else
     install_method="install"
   fi
+  
+  packages=(curl zip jq build-essential)
+  
+  if [ "$install_gvm" = true ]; then
+    packages+=(bison libbison-dev m4)
+  fi
 }
 
 create_base_directories() {
@@ -204,17 +210,28 @@ set_state_variables() {
 }
 
 check_dependencies() {
-  if ! command -v curl >/dev/null 2>&1; then
-    echo "curl is required to run this script."
-    echo "Please install it using sudo apt-get install curl"
-    exit 1
+  info_message "Updating apt-get..."
+  sudo apt-get update -y --fix-missing >/dev/null 2>&1
+  success_message "apt-get updated!"
+  echo 
+  
+  for package in "${packages[@]}"; do
+    install_package_dependency "$package"
+  done
+}
+
+install_package_dependency() {
+  package_name=$1
+
+  if ! dpkg-query -W $package_name >/dev/null 2>&1; then
+    info_message "${package_name} wasn't detected on your system, proceeding to install it (this might take a while)..."
+    sudo apt-get -y install $package_name >/dev/null 2>&1
+    success_message "$package_name successfully installed!"
+  else
+    success_message "$package_name is already installed - proceeding!"
   fi
   
-  if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
-    echo "zip and unzip are required to run this script."
-    echo "Please install them using sudo apt-get install zip unzip"
-    exit 1
-  fi
+  echo
 }
 
 #

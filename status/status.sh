@@ -101,7 +101,7 @@ parse_hosts() {
 identify_node_processes() {
   # Need to pass -g in order to make the hosts variable global - otherwise it's locally scoped to this function
   declare -ag hosts
-  ports=($(ps aux | grep "[n]ode --rest-api-port" | grep -Po "\-\-rest-api-port (\d+)" | grep -Po "\d+"))
+  ports=($(ps aux | grep "[n]ode --rest-api-interface" | grep -Po "\-\-rest-api-port (\d+)" | grep -Po "\d+"))
   
   if [ ${#ports[@]} -eq 0 ]; then
     if ps aux | grep '[n]ode' > /dev/null; then
