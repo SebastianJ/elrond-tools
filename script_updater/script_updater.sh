@@ -33,7 +33,7 @@ if [ -z "$destination_path" ]; then
   destination_path="$HOME/elrond/script"
 fi
 
-update_repo() {
+update_script() {
   echo "Updating elrond-go-scripts-v2 in $repo_path"
 
   if test -d $repo_path; then
@@ -69,3 +69,5 @@ install_files() {
 
   echo "Successfully updated elrond-go-scripts-v2!"
 }
+
+update_script
