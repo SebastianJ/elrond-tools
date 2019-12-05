@@ -28,6 +28,7 @@ Options:
    --tmux                             use tmux for starting the node
    --start                            if the script should start the node after the setup process has completed
    --stop                             stops all running nodes
+   --verbose                          run the script in verbose mode
    --auto-updater                     if the script should run in auto-updater node
    --interval                         how often the script should run while running in auto-updater mode
    --help                             print this help
@@ -55,6 +56,7 @@ do
   --tmux) node_mode="tmux" ;;
   --start) start_node=true ;;
   --stop) stop_nodes=true ;;
+  --verbose) verbose=true ;;
   --auto-updater) auto_updater=true ;;
   --interval) interval="$2" ; shift;;
   -h|--help) usage; exit 1;;
@@ -128,6 +130,10 @@ set_default_option_values() {
     node_mode="binary"
   fi
   
+  if [ -z "$verbose" ]; then
+    verbose=false
+  fi
+  
   # Interval between every loop invocation
   # E.g: 30s => 30 seconds, 1m => 1 minute, 1h => 1 hour
   if [ -z "$interval" ]; then
@@ -146,7 +152,7 @@ initialize() {
   set_default_option_values
   
   if [ "$full_reinstall" = true ]; then
-    rm -rf $base_build_path && mkdir -p $base_build_path
+    rm -rf $base_installation_path && mkdir -p $base_installation_path
   fi
   
   set_formatting
@@ -165,34 +171,41 @@ set_variables() {
   executing_user=$(whoami)
   configuration_files="config.toml economics.toml genesis.json nodesSetup.json p2p.toml prefs.toml server.toml"
   
-  base_build_path=$go_path/src/github.com/ElrondNetwork
-  node_build_path=$base_build_path/elrond-go
-  node_build_binary_folder_path=$node_build_path/cmd/node
-  node_build_binary_path=$node_build_binary_folder_path/node
-  config_path=$base_build_path/elrond-config
+  base_installation_path=$go_path/src/github.com/ElrondNetwork
+  base_binaries_path=$base_installation_path/elrond-go
+  build_dist_path=$elrond_path/dist
+  node_build_binary_path=$build_dist_path/node
+  config_repo_path=$base_installation_path/elrond-config
   
   keys_path=$elrond_path/keys
   alternative_keys_path=$HOME
   
-  tools_path=$elrond_path/tools
+  utils_path=$elrond_path/utils
   nodes_path=$elrond_path/nodes
   
-  if test -d $node_build_path; then
+  utility_binaries=(termui logviewer keygenerator)
+  
+  if test -d $base_binaries_path; then
     install_method="update"
   else
     install_method="install"
   fi
   
-  packages=(curl zip jq build-essential)
+  packages=(curl zip jq tmux build-essential)
   
   if [ "$install_gvm" = true ]; then
     packages+=(bison libbison-dev m4)
   fi
+  
+  # Wasmer:
+  libwasmer_version="0.1.0"
+  libwasmer_path="$GOPATH/pkg/mod/github.com/\!elrond\!network/go-ext-wasm@v${libwasmer_version}/wasmer/libwasmer_runtime_c_api.so"
 }
 
 create_base_directories() {
-  mkdir -p $base_build_path
-  mkdir -p $keys_path $tools_path $nodes_path
+  mkdir -p $base_installation_path
+  mkdir -p $build_dist_path
+  mkdir -p $keys_path $utils_path $nodes_path
 }
 
 set_state_variables() {
@@ -210,14 +223,21 @@ set_state_variables() {
 }
 
 check_dependencies() {
-  info_message "Updating apt-get..."
-  sudo apt-get update -y --fix-missing >/dev/null 2>&1
-  success_message "apt-get updated!"
-  echo 
+  output_header "${header_index}. Installation - checking package dependencies"
+  ((header_index++))
+  
+  #update_apt_get
   
   for package in "${packages[@]}"; do
     install_package_dependency "$package"
   done
+}
+
+update_apt_get() {
+  info_message "Updating apt-get..."
+  sudo apt-get update -y --fix-missing >/dev/null 2>&1
+  success_message "apt-get updated!"
+  echo 
 }
 
 install_package_dependency() {
@@ -253,6 +273,14 @@ set_go_version() {
     else
       go_version=$default_go_version
     fi
+  fi
+}
+
+install_go() {
+  if [ "$install_gvm" = true ]; then
+    gvm_go_installation
+  else
+    regular_go_installation
   fi
 }
 
@@ -373,8 +401,8 @@ install_git_repo() {
   repo_name="elrond-${1}"
   release_tag="$(curl --silent "https://api.github.com/repos/ElrondNetwork/${repo_name}/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')"
   
-  mkdir -p $base_build_path
-  cd $base_build_path
+  mkdir -p $base_installation_path
+  cd $base_installation_path
   
   if test -d $repo_name; then
     cd $repo_name
@@ -415,15 +443,13 @@ copy_build_configuration_files() {
   if [ -z "$matches_current_binary_version" ] || [ "$git_release_updated" = true ] || [ "$binary_compiled" = true ]; then
     output_header "${header_index}. Build - copying configuration files to build folder"
     ((header_index++))
+    
+    rm -rf $build_dist_path/config
+    mkdir -p $build_dist_path/config
+    cp $config_repo_path/*.* $build_dist_path/config
   
-    cd $node_build_path/cmd/node
-    rm -rf config
-    mkdir -p config
-  
-    cp $config_path/*.* $node_build_path/cmd/node/config
-  
-    if test -f $node_build_path/cmd/node/config/config.toml; then
-      success_message "Successfully copied the configuration files over to ${node_build_path}/cmd/node/config"
+    if test -f $build_dist_path/config/config.toml; then
+      success_message "Successfully copied the configuration files over to ${build_dist_path}/config !"
     fi
   
     output_footer
@@ -439,7 +465,7 @@ build_version() {
 }
 
 build_binary_version() {
-  build_version "${node_build_binary_folder_path}"
+  build_version "${build_dist_path}"
 }
 
 compare_build_binary_version_with_release_version() {
@@ -448,7 +474,7 @@ compare_build_binary_version_with_release_version() {
 }
 
 compile_binaries() {
-  output_header "${header_index}. Build - compiling node binary (if required)"
+  output_header "${header_index}. Build - compiling binaries (if required)"
   ((header_index++))
   
   if test -f $node_build_binary_path; then
@@ -464,27 +490,82 @@ compile_binaries() {
   fi
   
   if ! test -f $node_build_binary_path || [ "$git_release_updated" = true ]; then
-    cd $node_build_path
+    cd $base_binaries_path
     rm -rf $node_build_binary_path
     
     info_message "Downloading go modules..."
     GO111MODULE=on go mod vendor 1> /dev/null 2>&1
-    cd cmd/node
+    
     info_message "Compiling binaries..."
-    go build -i -v -ldflags="-X main.appVersion=$(git describe --tags --long --dirty)" 1> /dev/null 2>&1
+    echo 
     
-    compare_build_binary_version_with_release_version
+    compile_node_binary
     
-    if [ ! -z "$matches_current_binary_version" ]; then
-      success_message "Successfully compiled the node binary!"
-      success_message "Your node binary is now using version ${current_binary_version} ."
-      binary_compiled=true
-    fi
+    for utility_binary in "${utility_binaries[@]}"; do
+      compile_binary "$utility_binary"
+    done
+    
+    copy_libwasmer_runtime
   fi
   
   output_footer
 }
 
+compile_node_binary() {
+  info_message "Compiling node binary..."
+  
+  cd $base_binaries_path/cmd/node
+  go build -i -v -ldflags="-X main.appVersion=$(git describe --tags --long --dirty)" 1> /dev/null 2>&1
+  
+  rm -rf $build_dist_path/node
+  mv node $build_dist_path
+  
+  compare_build_binary_version_with_release_version
+  
+  if [ ! -z "$matches_current_binary_version" ]; then
+    success_message "Successfully compiled the node binary!"
+    success_message "Your node binary is now using version ${current_binary_version} ."
+    binary_compiled=true
+    echo
+  fi
+  
+  cd $base_binaries_path
+}
+
+compile_binary() {
+  local binary_name=$1
+  
+  info_message "Compiling ${binary_name} binary..."
+  cd $base_binaries_path/cmd/$binary_name
+  
+  go build 1> /dev/null 2>&1
+  
+  rm -rf $build_dist_path/$binary_name
+  mv $binary_name $build_dist_path
+  
+  echo
+  
+  cd $base_binaries_path
+}
+
+copy_libwasmer_runtime() {
+  if test -f $libwasmer_path; then
+    sudo rm -rf /lib/libwasmer_runtime_c_api.so
+    sudo cp $libwasmer_path /lib/
+  fi
+}
+
+copy_utility_binaries() {
+  cd $build_dist_path
+  
+  for utility_binary in "${utility_binaries[@]}"; do
+    cp $utility_binary $utils_path
+  done
+}
+
+install_status_script() {
+  cd $utils_path && curl -LOs https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/status/status.sh && chmod u+x status.sh
+}
 
 #
 # Systemd
@@ -547,15 +628,7 @@ download_and_setup_systemd_unit() {
 #
 # Tmux
 #
-install_tmux_if_missing() {
-  if ! command -v tmux >/dev/null 2>&1; then
-    sudo apt-get -y install tmux  1> /dev/null 2>&1
-  fi
-}
-
 launch_tmux_session() {
-  install_tmux_if_missing
-  
   local session_name="$1"
   local command="$2"
   
@@ -611,12 +684,10 @@ install_auto_updater() {
 
 install_auto_updater_script() {
   cd $HOME
+  mkdir -p $utils_path
   
-  mkdir -p $tools_path
-  
-  info_message "Downloading setup script to ${tools_path}/setup.sh"
-  cd $tools_path
-  curl -LOs https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
+  info_message "Downloading setup script to ${utils_path}/setup.sh"
+  cd $utils_path && curl -LOs https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/setup/setup.sh && chmod u+x setup.sh
 }
 
 install_systemd_auto_updater() {
@@ -637,7 +708,7 @@ install_tmux_auto_updater() {
     for pid in `ps -ef | grep "[s]etup.sh" | grep "\-\-auto\-updater" | awk '{print $2}'`; do kill $pid; done
   fi
   
-  launch_tmux_session "elrond-auto-updater" "cd $tools_path && ./setup.sh --tmux --auto-updater --interval 5m"
+  launch_tmux_session "elrond-auto-updater" "cd $utils_path && ./setup.sh --tmux --auto-updater --interval 5m"
 }
 
 identify_node_count() {
@@ -665,7 +736,7 @@ manage_node() {
   node_id=$((node_index+1))
   hosts+=("localhost:${port_alias}")
   
-  node_instance_path=$nodes_path/$port_alias
+  node_instance_path=$nodes_path/node-$node_index
   node_instance_node_path=$node_instance_path/node
   node_instance_node_config_path=$node_instance_path/node/config
   node_instance_node_db_path=$node_instance_path/node/db
@@ -674,7 +745,7 @@ manage_node() {
   node_instance_keys_archive=$node_instance_backups_path/keys.zip
   node_instance_configs_archive=$node_instance_backups_path/configs.zip
   
-  output_header "${header_index}. Node ${port_alias}: Performing actions"
+  output_header "${header_index}. Node ${node_index} - localhost:${port_alias}: Performing actions"
   ((header_index++))
   
   backup_node_database
@@ -701,8 +772,8 @@ manage_node() {
 }
 
 create_node_directories() {
-  mkdir -p $nodes_path/$port_alias/node/config
-  mkdir -p $nodes_path/$port_alias/backups
+  mkdir -p $node_instance_path/node/config
+  mkdir -p $node_instance_path/backups
 }
 
 cleanup_previous_node_build() {  
@@ -725,8 +796,8 @@ cleanup_previous_node_build() {
 
 copy_build() {
   output_sub_header "Build - copying build to ${node_instance_path}/node"
-
-  cd $node_build_path/cmd/node
+  
+  cd $build_dist_path
   mkdir -p $node_instance_path/node
 
   if [ "$git_release_updated" = true ] || [ "$binary_compiled" = true ]; then
@@ -858,13 +929,13 @@ restore_node_database() {
 #
 use_existing_keys() {
   # Try to first see if the keys have been placed in the keys folder, e.g. $HOME/elrond/keys/keys-8080.zip
-  if test -f $keys_path/keys-$port_alias.zip; then
+  if test -f $keys_path/node-$node_index.zip; then
     rm -rf $node_instance_keys_archive
-    cp $keys_path/keys-$port_alias.zip $node_instance_keys_archive
+    cp $keys_path/node-$node_index.zip $node_instance_keys_archive
   # Or try to look for them, in the home folder, e.g: $HOME/keys-8080.zip
-  elif test -f $alternative_keys_path/keys-$port_alias.zip; then
+  elif test -f $alternative_keys_path/node-$node_index.zip; then
     rm -rf $node_instance_keys_archive
-    cp $alternative_keys_path/keys-$port_alias.zip $node_instance_keys_archive
+    cp $alternative_keys_path/node-$node_index.zip $node_instance_keys_archive
   fi
 }
 
@@ -875,8 +946,8 @@ backup_keys() {
     info_message "Backing up keys from ${node_instance_node_path}/config to ${node_instance_keys_archive}..."
     
     cd $node_instance_node_path/config
-    zip -qj keys-$port_alias.zip *.pem
-    mv keys-$port_alias.zip $node_instance_backups_path
+    zip -qj node-$node_index.zip *.pem
+    mv node-$node_index.zip $node_instance_backups_path
     
     if test -f $node_instance_keys_archive; then
       success_message "Successfully backed up keys to ${node_instance_keys_archive}!"
@@ -892,8 +963,7 @@ generate_keys() {
     
     info_message "Generating new keys..."
     
-    cd $node_build_path/cmd/keygenerator
-    go build 1> /dev/null 2>&1
+    cd $utils_path
     ./keygenerator 1> /dev/null 2>&1
     
     declare -a pemfiles=("initialBalancesSk.pem" "initialNodesSk.pem")
@@ -941,7 +1011,7 @@ manage_keys() {
 #
 install_node_systemd_unit() {
   if [ "$node_mode" = "systemd" ]; then
-    download_and_setup_systemd_unit "elrond" "${port_alias}"
+    download_and_setup_systemd_unit "elrond-node" "${node_index}"
   fi
 }
 
@@ -1017,7 +1087,8 @@ start_node_using_tmux() {
   stop_nodes
   local tmux_session_name="elrond-${port_alias}"
   
-  launch_tmux_session "${tmux_session_name}" "cd ${node_instance_node_path} && ./node"
+  launch_tmux_session "${tmux_session_name}" "cd ${node_instance_node_path} && ./node --rest-api-interface localhost:${port_alias}"
+  
   tmux_sessions+=("${tmux_session_name}")
 }
 
@@ -1077,6 +1148,15 @@ display_node_summary() {
   output_footer
 }
 
+create_status_script_hosts_file() {
+  if (( ${#hosts[@]} )); then
+    cd $utils_path
+    rm -rf hosts.txt
+    touch hosts.txt
+    printf "%s\n" "${hosts[@]}" > hosts.txt
+  fi
+}
+
 
 #
 # Formatting/outputting methods
@@ -1124,6 +1204,7 @@ output_banner() {
   fi
   
   info_message "You're running ${bold_text}${script_name}${normal_text} as ${bold_text}${executing_user}${normal_text} in ${bold_text}${mode_text}${normal_text} mode. Current time is: ${bold_text}${current_time}${normal_text}."
+  echo
 }
 
 output_header() {
@@ -1170,23 +1251,21 @@ run_setup() {
   fi
     
   # General methods
-  if [ "$install_gvm" = true ]; then
-    gvm_go_installation
-  else
-    regular_go_installation
-  fi
-  
+  install_go
   check_for_go
   
   # Builds the actual node software
   install_git_repos
   compile_binaries
   copy_build_configuration_files
+  copy_utility_binaries
+  install_status_script
   
   # Copies the node software, configuration etc. and sets up the number of requested nodes
   manage_nodes
   
   display_node_summary
+  create_status_script_hosts_file
 }
 
 #
