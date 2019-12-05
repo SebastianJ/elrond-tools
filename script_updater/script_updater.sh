@@ -46,13 +46,13 @@ update_repo() {
       echo "You already have the latest version of elrond-go-scripts-v2!"
     else
       git pull
-
       install_files
     fi
   else
     mkdir -p $repo_path
     cd $repo_path
     git clone https://github.com/ElrondNetwork/elrond-go-scripts-v2.git
+    install_files
   fi
 }
 
@@ -69,7 +69,3 @@ install_files() {
 
   echo "Successfully updated elrond-go-scripts-v2!"
 }
-
-
-
-
