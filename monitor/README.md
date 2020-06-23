@@ -5,7 +5,7 @@ A simple monitor script that restarts nodes based on a minimal ruleset
 ## Local usage example
 
 ```
-curl -LOs https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/monitor/monitor.sh && chmod +x status.sh
+curl -LOs https://raw.githubusercontent.com/SebastianJ/elrond-tools/master/monitor/monitor.sh && chmod +x monitor.sh
 ./monitor.sh --file hosts.txt
 ```
 
