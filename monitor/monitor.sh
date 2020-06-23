@@ -121,7 +121,7 @@ identify_node_processes() {
 }
 
 check_api_heartbeats() {
-  heartbeats_response=$(curl --silent https://api.elrond.com/node/heartbeatstatus | jq '.message[]')
+  heartbeats_response=$(curl --silent --max-time 60 --connect-timeout 30 https://api.elrond.com/node/heartbeatstatus | jq '.message[]')
 }
 
 check_hosts() {
@@ -146,7 +146,7 @@ check_host() {
   output_header "${header_index}. Checking host ${host}"
   ((header_index++))
   
-  local response=$(curl --silent http://${host}/node/status | jq '.details')
+  local response=$(curl --silent --max-time 60 --connect-timeout 30 http://${host}/node/status | jq '.details')
     
   if [ ! -z "$response" ]; then
     if [ "$debug_mode" = true ]; then
